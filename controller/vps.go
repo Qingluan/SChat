@@ -43,6 +43,9 @@ type Vps struct {
 	session *ssh.Session
 	client  *ssh.Client
 	sftsess *sftp.Client
+
+	signal    chan int
+	onMessage func(from, msg string, date time.Time)
 }
 
 const ROOT = "/tmp/SecureRoom"
@@ -50,6 +53,12 @@ const ROOT = "/tmp/SecureRoom"
 var (
 	HOME, _ = os.UserHomeDir()
 )
+
+type Message struct {
+	Date string `json:"date"`
+	Data string `json:"data"`
+	From string `json:"from"`
+}
 
 // type Vultr struct {
 // 	API     string //
@@ -75,8 +84,6 @@ func (vps *Vps) Connect() (client *ssh.Client, sess *ssh.Session, err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// }
 
 	sshConfig = &ssh.ClientConfig{
 		User: vps.USER,
@@ -122,6 +129,25 @@ func (vps *Vps) Connect() (client *ssh.Client, sess *ssh.Session, err error) {
 	return client, session, nil
 }
 
+func (vps *Vps) Init() (err error) {
+	if vps.session == nil {
+
+		vps.client, vps.session, err = vps.Connect()
+	}
+	if err == nil {
+		fmt.Println(utils.Green("Connected"))
+	}
+	err = vps.session.Run("mkdir -p " + vps.myhome + " ; echo \"" + vps.client.LocalAddr().String() + "\" > " + vps.myhome + "/info")
+	go vps.HeartBeat()
+	go vps.backgroundRecvMsgs()
+	return
+}
+
+func (vps *Vps) Close() {
+	vps.signal <- -1
+
+}
+
 func (vps *Vps) ContactTo(name string) (ip string, err error) {
 	vps.msgto = name
 	msgpath := filepath.Join(ROOT, vps.msgto, "info")
@@ -160,13 +186,13 @@ func (vps *Vps) SendMsg(msg string) (err error) {
 	}
 	msgpath := filepath.Join(ROOT, vps.msgto, "message.txt")
 	err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, func(fp io.WriteCloser) error {
-		d := map[string]string{
-			"date": fmt.Sprint(date),
-			"data": msg,
+		d := Message{
+			Date: fmt.Sprint(date),
+			Data: msg,
+			From: vps.name,
 		}
 		data, _ := json.Marshal(&d)
-
-		_, e := fp.Write([]byte(string(data) + "\n"))
+		_, e := fp.Write([]byte(string(data) + "\n\r"))
 		return e
 	})
 
@@ -186,7 +212,7 @@ func (vps *Vps) HeartBeat() {
 				_, er := fp.Write([]byte(t.Format("2006-1-2 15:04:05 -0700 MST")))
 				return er
 			})
-			fmt.Println("----- heart beat :", t)
+			// fmt.Println("----- heart beat :", t)
 		}
 	}
 }
@@ -214,7 +240,7 @@ func (vps *Vps) IfAlive() (out bool) {
 	return
 }
 
-func (vps *Vps) RecvMsg() (msgs []map[string]string, err error) {
+func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 	// date := time.Now().Format("2006-1-2 15:04:05(-0700)")
 	// fmt.Println(date)
 
@@ -231,11 +257,12 @@ func (vps *Vps) RecvMsg() (msgs []map[string]string, err error) {
 		if len(buf) == 0 {
 			return nil
 		}
-		for _, linebuf := range bytes.Split(buf, []byte("\n")) {
-			onemsg := make(map[string]string)
-			err = json.Unmarshal(linebuf, &onemsg)
+		for _, linebuf := range bytes.Split(buf, []byte("\n\r")) {
+			onemsg := new(Message)
+			testmsg := strings.TrimSpace(string(linebuf))
+			err = json.Unmarshal([]byte(testmsg), onemsg)
 			if err != nil {
-				log.Println("msg err :", string(linebuf))
+				log.Println("msg err :", string(linebuf), err)
 				continue
 			}
 			msgs = append(msgs, onemsg)
@@ -249,13 +276,12 @@ func (vps *Vps) RecvMsg() (msgs []map[string]string, err error) {
 			strings := ""
 			for _, m := range msgs {
 				data, _ := json.Marshal(&m)
-				strings += string(data) + "\n"
+				strings += string(data) + "\n\r"
 			}
 			_, err := fp.Write([]byte(strings))
 			return err
 		})
 		if err == nil {
-
 			err = vps.sftsess.Remove(filepath.Join(vps.myhome, "message.txt"))
 		}
 
@@ -265,24 +291,45 @@ func (vps *Vps) RecvMsg() (msgs []map[string]string, err error) {
 
 }
 
-func (vps *Vps) OnMessage(call func(msg string, date time.Time)) {
+func (vps *Vps) backgroundRecvMsgs() {
+	tick := time.NewTicker(300 * time.Microsecond)
+BACKEND:
 	for {
-		time.Sleep(300 * time.Microsecond)
-		if msgs, err := vps.RecvMsg(); err != nil {
-			log.Println("[recv failed]:", err)
-			time.Sleep(1 * time.Second)
-			vps.Connect()
-		} else {
-			for _, msg := range msgs {
-				t, er := time.Parse("2006-1-2 15:04:05(-0700)", msg["date"])
-				if er != nil {
-					log.Println("[recv failed with date]:", msg)
-					continue
+
+		select {
+		case <-tick.C:
+			if msgs, err := vps.RecvMsg(); err != nil {
+				log.Println("[recv failed]:", err)
+				time.Sleep(1 * time.Second)
+				vps.Connect()
+			} else {
+				for _, msg := range msgs {
+					t, er := time.Parse("2006-1-2 15:04:05(-0700)", msg.Date)
+					if er != nil {
+						log.Println("[recv failed with date]:", msg)
+						continue
+					}
+					if vps.onMessage != nil {
+						go vps.onMessage(msg.From, msg.Data, t)
+					}
 				}
-				call(msg["data"], t)
 			}
+
+		case c := <-vps.signal:
+			if c == -1 {
+				break BACKEND
+			}
+		default:
+			time.Sleep(200 * time.Microsecond)
+
 		}
 	}
+	close(vps.signal)
+	fmt.Println("exit recv msg in background!!")
+}
+
+func (vps *Vps) OnMessage(call func(from, msg string, date time.Time)) {
+	vps.onMessage = call
 }
 
 func (vps *Vps) WithSftp(done func(client *sftp.Client) error) (err error) {
@@ -326,19 +373,6 @@ func (vps *Vps) WithSftpWrite(path string, flags int, done func(fp io.WriteClose
 		defer fp.Close()
 		return err
 	})
-	return
-}
-
-func (vps *Vps) Init() (err error) {
-	if vps.session == nil {
-
-		vps.client, vps.session, err = vps.Connect()
-	}
-	if err == nil {
-		fmt.Println(utils.Green("Connected"))
-	}
-	err = vps.session.Run("mkdir -p " + vps.myhome + " ; echo \"" + vps.client.LocalAddr().String() + "\" > " + vps.myhome + "/info")
-	go vps.HeartBeat()
 	return
 }
 
@@ -594,6 +628,7 @@ func Parse(sshStr string) *Vps {
 	}
 	v.name = name
 	v.myhome = filepath.Join(ROOT, name)
+	v.signal = make(chan int, 10)
 	return v
 }
 
