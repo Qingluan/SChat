@@ -259,10 +259,15 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 		}
 		for _, linebuf := range bytes.Split(buf, []byte("\n\r")) {
 			onemsg := new(Message)
+			// log.Println("msg :", linebuf)
 			testmsg := strings.TrimSpace(string(linebuf))
+			// log.Println("msg :", testmsg)
+			if testmsg == "" {
+				continue
+			}
 			err = json.Unmarshal([]byte(testmsg), onemsg)
 			if err != nil {
-				log.Println("msg err :", string(linebuf), err)
+				log.Println("msg err :", linebuf, err)
 				continue
 			}
 			msgs = append(msgs, onemsg)
@@ -292,7 +297,7 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 }
 
 func (vps *Vps) backgroundRecvMsgs() {
-	tick := time.NewTicker(300 * time.Microsecond)
+	tick := time.NewTicker(300 * time.Millisecond)
 BACKEND:
 	for {
 
@@ -320,7 +325,7 @@ BACKEND:
 				break BACKEND
 			}
 		default:
-			time.Sleep(200 * time.Microsecond)
+			time.Sleep(200 * time.Millisecond)
 
 		}
 	}
