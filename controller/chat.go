@@ -3,14 +3,21 @@ package controller
 type ChatRoom struct {
 	IP       string
 	nowMsgTo string
-	Server   *Vps
+	vps      *Vps
+	stream   *Stream
 }
 
-func NewChatRoom(sshstr string) (chat *ChatRoom) {
+func NewChatRoom(sshstr string) (chat *ChatRoom, err error) {
 	chat = new(ChatRoom)
-	chat.Server = Parse(sshstr)
-	chat.IP = chat.Server.IP
-	return chat
+	chat.vps = Parse(sshstr)
+	chat.IP = chat.vps.IP
+	chat.stream, err = NewStreamWithAuthor(chat.vps.name)
+	return chat, err
+}
+
+func (chat *ChatRoom) TalkTo(name string) {
+	chat.vps.ContactTo(name)
+	chat.vps.SendKey(chat.stream.Key)
 }
 
 // func (chat *ChatRoom) MsgTo(name string) *Message {

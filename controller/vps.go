@@ -202,6 +202,39 @@ func (vps *Vps) ContactTo(name string) (ip string, err error) {
 	return ip, err
 }
 
+func (vps *Vps) IfNeedKey() bool {
+	pa := filepath.Join(ROOT, vps.msgto, "keys")
+	err := vps.WithSftpRead(pa, os.O_RDONLY, func(fp io.ReadCloser) error {
+		buf, _ := ioutil.ReadAll(fp)
+		for _, l := range strings.Split(string(buf), "\n") {
+
+		}
+		return nil
+	})
+
+}
+
+func (vps *Vps) SendKey(key string) (err error) {
+	date := time.Now().Format(TIME_TMP)
+	if vps.msgto == "" {
+
+		return fmt.Errorf("offline/no set user")
+	}
+	msgpath := filepath.Join(ROOT, vps.msgto, "message.txt")
+	err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, func(fp io.WriteCloser) error {
+		d := Message{
+			Date: fmt.Sprint(date),
+			Data: key,
+			From: "${key}:" + vps.name,
+		}
+		data, _ := json.Marshal(&d)
+		_, e := fp.Write([]byte(string(data) + "\n\r"))
+		return e
+	})
+	return
+
+}
+
 func (vps *Vps) SendMsg(msg string) (err error) {
 	date := time.Now().Format(TIME_TMP)
 	if vps.msgto == "" {
