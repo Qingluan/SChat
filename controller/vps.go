@@ -49,21 +49,39 @@ type Vps struct {
 }
 
 const ROOT = "/tmp/SecureRoom"
+const TIME_TMP = "2006-1-2 15:04:05 -0700 MST"
 
 var (
 	HOME, _ = os.UserHomeDir()
 )
 
+type User struct {
+	Name       string `json:"name"`
+	State      bool   `json:"login"`
+	LastActive string `json:"last"`
+}
 type Message struct {
 	Date string `json:"date"`
 	Data string `json:"data"`
 	From string `json:"from"`
 }
 
-// type Vultr struct {
-// 	API     string //
-// 	Servers map[string]Vps
-// }
+func (u *User) Last() (t time.Time) {
+	t, err := time.Parse(TIME_TMP, u.LastActive)
+	if err != nil {
+		log.Println("parse last active time failed !", u.LastActive, err)
+		t, _ = time.Parse(TIME_TMP, TIME_TMP)
+	}
+	return
+}
+
+func (u *User) Acivte() string {
+	return fmt.Sprintf("%s", time.Now().Sub(u.Last()))
+}
+
+func (u *User) IfAlive() bool {
+	return !time.Now().After(u.Last().Add(15 * time.Second))
+}
 
 func (vps Vps) String() string {
 	return fmt.Sprintf("%s(Loc:%s Tag:%s)", vps.IP, vps.Region, vps.TAG)
@@ -135,9 +153,15 @@ func (vps *Vps) Init() (err error) {
 		vps.client, vps.session, err = vps.Connect()
 	}
 	if err == nil {
-		fmt.Println(utils.Green("Connected"))
+		fmt.Println(utils.Green("Connected", vps.myhome))
 	}
-	err = vps.session.Run("mkdir -p " + vps.myhome + " ; echo \"" + vps.client.LocalAddr().String() + "\" > " + vps.myhome + "/info")
+	inits := fmt.Sprintf("mkdir -p %s && mkdir -p %s/files && echo \"%s\" >  %s/info",
+		vps.myhome,
+		vps.myhome,
+		vps.client.LocalAddr().String(),
+		vps.myhome,
+	)
+	err = vps.session.Run(inits)
 	go vps.HeartBeat()
 	go vps.backgroundRecvMsgs()
 	return
@@ -179,7 +203,7 @@ func (vps *Vps) ContactTo(name string) (ip string, err error) {
 }
 
 func (vps *Vps) SendMsg(msg string) (err error) {
-	date := time.Now().Format("2006-1-2 15:04:05(-0700)")
+	date := time.Now().Format(TIME_TMP)
 	if vps.msgto == "" {
 
 		return fmt.Errorf("offline/no set user")
@@ -209,7 +233,7 @@ func (vps *Vps) HeartBeat() {
 			t := time.Now()
 			vps.WithSftpWrite(last_activate, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, func(fp io.WriteCloser) error {
 
-				_, er := fp.Write([]byte(t.Format("2006-1-2 15:04:05 -0700 MST")))
+				_, er := fp.Write([]byte(t.Format(TIME_TMP)))
 				return er
 			})
 			// fmt.Println("----- heart beat :", t)
@@ -225,7 +249,7 @@ func (vps *Vps) IfAlive() (out bool) {
 		if err != nil {
 			return err
 		}
-		t, err := time.Parse("2006-1-2 15:04:05 -0700 MST", string(buf))
+		t, err := time.Parse(TIME_TMP, string(buf))
 		if err != nil {
 			return err
 		}
@@ -241,8 +265,6 @@ func (vps *Vps) IfAlive() (out bool) {
 }
 
 func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
-	// date := time.Now().Format("2006-1-2 15:04:05(-0700)")
-	// fmt.Println(date)
 
 	msgpath := filepath.Join(vps.myhome, "message.txt")
 	vps.WithSftpRead(msgpath, os.O_RDONLY|os.O_CREATE, func(fp io.ReadCloser) error {
@@ -296,6 +318,42 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 
 }
 
+func (vps *Vps) Contact() (users []*User, err error) {
+	vps.WithSftpDir(ROOT, func(fs os.FileInfo) error {
+		if fs.Name() == vps.name {
+			return nil
+		}
+		if fs.IsDir() {
+			userinfo := filepath.Join(ROOT, fs.Name(), "heart")
+			// fmt.Println(userinfo)
+			err = vps.WithSftpRead(userinfo, os.O_RDONLY, func(fp io.ReadCloser) error {
+				buf, err := ioutil.ReadAll(fp)
+				if err != nil {
+					return err
+				}
+				ts := strings.TrimSpace(string(buf))
+				_, err = time.Parse(TIME_TMP, ts)
+				if err != nil {
+					return err
+				}
+				user := &User{
+					Name:       fs.Name(),
+					LastActive: ts,
+				}
+				user.State = user.IfAlive()
+				users = append(users, user)
+				return nil
+			})
+			if err != nil {
+				fmt.Println("parse heart er:", err, userinfo)
+			}
+		}
+
+		return nil
+	})
+	return
+}
+
 func (vps *Vps) backgroundRecvMsgs() {
 	tick := time.NewTicker(300 * time.Millisecond)
 BACKEND:
@@ -309,7 +367,7 @@ BACKEND:
 				vps.Connect()
 			} else {
 				for _, msg := range msgs {
-					t, er := time.Parse("2006-1-2 15:04:05(-0700)", msg.Date)
+					t, er := time.Parse(TIME_TMP, msg.Date)
 					if er != nil {
 						log.Println("[recv failed with date]:", msg)
 						continue
@@ -362,6 +420,25 @@ func (vps *Vps) WithSftpRead(path string, flags int, done func(fp io.ReadCloser)
 		}
 		err = done(fp)
 		defer fp.Close()
+		return err
+	})
+	return
+}
+
+func (vps *Vps) WithSftpDir(path string, done func(fs os.FileInfo) error) (err error) {
+	err = vps.WithSftp(func(client *sftp.Client) (e error) {
+
+		fss, err := client.ReadDir(path)
+		if err != nil {
+			return fmt.Errorf("can not open file:%s", path)
+		}
+		for _, fs := range fss {
+			err = done(fs)
+			if err != nil {
+				return fmt.Errorf("parse one file in dir err:%s | %s", path, err)
+			}
+		}
+		// defer fp.Close()
 		return err
 	})
 	return
