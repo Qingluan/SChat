@@ -1,4 +1,4 @@
-module SshChat
+module Chat
 
 go 1.16
 

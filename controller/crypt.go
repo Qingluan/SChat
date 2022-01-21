@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -27,7 +29,8 @@ type Stream struct {
 	Key    string `json:"key"`
 	Author string `json:"author"`
 	// Nonce string `json:"nonce"`
-	cipher *cipher.AEAD
+	cipher    *cipher.AEAD
+	nonceSize int
 }
 
 func NewStreamWithRandomeKey() (stream *Stream, err error) {
@@ -54,6 +57,7 @@ func NewStreamWithRandomeKey() (stream *Stream, err error) {
 	gcm, err := cipher.NewGCM(c)
 	stream.cipher = &gcm
 	stream.Key = keyb64
+	stream.nonceSize = (*stream.cipher).NonceSize()
 	return
 }
 
@@ -106,6 +110,8 @@ func NewStreamWithAuthor(author string) (stream *Stream, err error) {
 	stream.cipher = &gcm
 	stream.Key = key64
 	stream.Author = author
+	stream.nonceSize = (*stream.cipher).NonceSize()
+
 	if !saved {
 		stream.SaveKey(author)
 	}
@@ -134,6 +140,8 @@ func NewStreamWithBase64Key(keyb64 string) (stream *Stream, err error) {
 	gcm, err := cipher.NewGCM(c)
 	stream.cipher = &gcm
 	stream.Key = keyb64
+	stream.nonceSize = (*stream.cipher).NonceSize()
+
 	return
 }
 
@@ -218,39 +226,55 @@ func (stream *Stream) ReBildCipherByKey(keyb64 string) {
 	}
 	stream.cipher = &gcm
 	stream.Key = keyb64
+	stream.nonceSize = (*stream.cipher).NonceSize()
+
 }
 
 func (stream *Stream) En(plain []byte) (cipher []byte) {
-	nonce := make([]byte, (*stream.cipher).NonceSize())
+	// nonceSize := (*stream.cipher).NonceSize()
+	nonce := make([]byte, stream.nonceSize)
+
 	// populates our nonce with a cryptographically secure
 	// random sequence
+
 	var err error
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
 		fmt.Println(err)
 	}
 
+	// log.Println("nonce sise:", stream.nonceSize, "no:", nonce)
+	// log.Println("key:", stream.Key)
 	// here we encrypt our text using the Seal function
 	// Seal encrypts and authenticates plaintext, authenticates the
 	// additional data and appends the result to dst, returning the updated
 	// slice. The nonce must be NonceSize() bytes long and unique for all
 	// time, for a given key.
-	return (*stream.cipher).Seal(nonce, nonce, []byte(plain), nil)
+	cipherText := (*stream.cipher).Seal(nonce, nonce, []byte(plain), nil)
+	// cipherText = append(nonce, cipherText...)
+	// log.Println("2. nonce sise:", stream.nonceSize, "no:", nonce)
+	// log.Println("cipher:", cipherText, len(cipherText))
+	return cipherText
 }
 
 func (stream *Stream) De(cipher []byte) (plain []byte) {
 	// nonce := make([]byte, (*stream.cipher).NonceSize())
 	// populates our nonce with a cryptographically secure
 	// random sequence
+	// log.Println("\ncipher:", cipher, len(cipher))
+	// log.Println("\nkey:", stream.Key)
 	var err error
-	nonceSize := (*stream.cipher).NonceSize()
-	if len(cipher) < nonceSize {
-		fmt.Println(err)
+	// nonceSize
+
+	if len(cipher) < stream.nonceSize {
+		log.Println("cipher de: c<n", err)
 	}
 
-	nonce, cipher := cipher[:nonceSize], cipher[nonceSize:]
+	nonce, cipher := cipher[:stream.nonceSize], cipher[stream.nonceSize:]
+	// log.Println("\nnonce:", nonce, "\ncipher:", cipher, len(cipher))
 	plaintext, err := (*stream.cipher).Open(nil, nonce, cipher, nil)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("cipher de: open err ,", err)
+		log.Println("nonce sise:", stream.nonceSize, "no:", nonce)
 	}
 
 	// here we encrypt our text using the Seal function
@@ -516,4 +540,102 @@ func (stream *Stream) DecryptFile(cipherFile, plainFile string, bar ...func(int6
 		return
 	}
 	return
+}
+
+func VerifyKey(name, mac string) (exists bool) {
+
+	_, err := os.Stat(KeysHome)
+	if err != nil {
+		os.MkdirAll(KeysHome, os.ModePerm)
+	}
+	keys, err := os.ReadDir(KeysHome)
+	if err != nil {
+		log.Println("load keys list err:", err)
+	}
+	test := name + ".key"
+	// found := false
+	for _, k := range keys {
+		n := strings.TrimSpace(k.Name())
+		// fmt.Println("+", n, author, author+".key", n == author+".key")
+		if test == n {
+			// fmt.Println("+", name, test)
+			key, err := ioutil.ReadFile(filepath.Join(KeysHome, n))
+			if err != nil {
+				log.Println("load keys err:", err)
+				continue
+			}
+			k := strings.TrimSpace(string(key))
+			b := md5.Sum([]byte(k))
+			res := hex.EncodeToString(b[:])
+			if res == strings.TrimSpace(mac) {
+				return true
+
+			}
+		} else {
+			// fmt.Println("com", []byte(test), []byte(name))
+		}
+	}
+	return false
+}
+
+func LocalKeys() (kmac []string) {
+
+	_, err := os.Stat(KeysHome)
+	if err != nil {
+		os.MkdirAll(KeysHome, os.ModePerm)
+	}
+	keys, err := os.ReadDir(KeysHome)
+	if err != nil {
+		log.Println("load keys list err:", err)
+	}
+	// found := false
+	for _, k := range keys {
+		n := strings.TrimSpace(k.Name())
+		key, err := ioutil.ReadFile(filepath.Join(KeysHome, n))
+		if err != nil {
+			log.Println("load keys err:", err)
+			continue
+		}
+		k := strings.TrimSpace(string(key))
+		b := md5.Sum([]byte(k))
+		res := hex.EncodeToString(b[:])
+		kmac = append(kmac, strings.SplitN(n, ".key", 2)[0]+":"+res)
+	}
+	return
+}
+
+func GetKey(name string) string {
+
+	_, err := os.Stat(KeysHome)
+	if err != nil {
+		os.MkdirAll(KeysHome, os.ModePerm)
+	}
+	n := strings.TrimSpace(name) + ".key"
+	key, err := ioutil.ReadFile(filepath.Join(KeysHome, n))
+	if err != nil {
+		log.Println("load keys err:", err)
+		return ""
+	}
+	k := strings.TrimSpace(string(key))
+	return k
+}
+
+func SetKey(name, key string) {
+
+	_, err := os.Stat(KeysHome)
+	if err != nil {
+		os.MkdirAll(KeysHome, os.ModePerm)
+	}
+	n := strings.TrimSpace(name) + ".key"
+	err = ioutil.WriteFile(filepath.Join(KeysHome, n), []byte(key), os.ModePerm)
+	if err != nil {
+		log.Println("load keys err:", err)
+	}
+
+}
+
+func ToMd5(key string) string {
+	b := md5.Sum([]byte(key))
+	res := hex.EncodeToString(b[:])
+	return res
 }
