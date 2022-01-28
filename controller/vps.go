@@ -79,6 +79,25 @@ type Message struct {
 	Crypted bool   `json:"crypt"`
 }
 
+func Join(root string, files ...string) string {
+	fs := root
+	if !strings.HasSuffix(root, "/") {
+		fs += "/"
+	}
+	for _, f := range files {
+		f = strings.TrimSpace(f)
+		if strings.HasPrefix(f, "./") {
+			fs += f[2:]
+		} else if strings.HasPrefix(f, "/") {
+			fs = f
+		}
+		if !strings.HasSuffix(root, "/") {
+			fs += "/"
+		}
+	}
+	return fs
+}
+
 func (u *User) Last() (t time.Time) {
 	t, err := time.Parse(TIME_TMP, u.LastActive)
 	if err != nil {
@@ -102,26 +121,32 @@ func (vps Vps) String() string {
 func (vps *Vps) Connect() (client *ssh.Client, sess *ssh.Session, err error) {
 	var sshConfig *ssh.ClientConfig
 	var signer ssh.Signer
+	foundPri := false
 	// var err error
 	// if vps.PWD == "" {
 
 	privateKeyPath := filepath.Join(HOME, ".ssh", "id_rsa")
 	pemBytes, err := ioutil.ReadFile(privateKeyPath)
 	if err != nil {
-		log.Fatal("Reading private key file failed %v", err)
+		log.Printf("Reading private key file failed %v", err)
+	} else {
+		signer, err = signerFromPem(pemBytes, []byte(""))
+		if err != nil {
+			log.Fatal(err)
+		}
+		foundPri = true
+
 	}
 	// create signer
-	signer, err = signerFromPem(pemBytes, []byte(""))
-	if err != nil {
-		log.Fatal(err)
+	Auth := []ssh.AuthMethod{}
+	if foundPri {
+		Auth = append(Auth, ssh.PublicKeys(signer))
 	}
+	Auth = append(Auth, ssh.Password(vps.PWD))
 
 	sshConfig = &ssh.ClientConfig{
 		User: vps.USER,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-			ssh.Password(vps.PWD),
-		},
+		Auth: Auth,
 	}
 	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
@@ -168,7 +193,7 @@ func (vps *Vps) Init(mykeys []string) (err error) {
 	if err == nil {
 		fmt.Println(utils.Green("Connected", vps.myhome))
 	}
-	dpath := filepath.Join(ROOT, "tmp_file")
+	dpath := Join(ROOT, "tmp_file")
 	inits := fmt.Sprintf("mkdir -p %s ;mkdir -p %s && mkdir -p %s/files && echo \"%s\" >  %s/info",
 		dpath,
 		vps.myhome,
@@ -177,7 +202,7 @@ func (vps *Vps) Init(mykeys []string) (err error) {
 		vps.myhome,
 	)
 	err = vps.session.Run(inits)
-	k := filepath.Join(vps.myhome, "keys")
+	k := Join(vps.myhome, "keys")
 	vps.WithSftpWrite(k, os.O_CREATE|os.O_TRUNC|os.O_RDWR, func(fp io.WriteCloser) error {
 		fp.Write([]byte(strings.Join(mykeys, "\n")))
 		return nil
@@ -196,7 +221,7 @@ func (vps *Vps) Close() {
 func (vps *Vps) ContactTo(name string) (ip string, err error) {
 	vps.msgto = name
 	vps.state = TALKER_REQ
-	msgpath := filepath.Join(ROOT, vps.msgto, "info")
+	msgpath := Join(ROOT, vps.msgto, "info")
 	err = vps.WithSftpRead(msgpath, os.O_RDONLY, func(fp io.ReadCloser) error {
 		buf, err := ioutil.ReadAll(fp)
 		if err != nil {
@@ -262,7 +287,7 @@ func (vps *Vps) ContactTo(name string) (ip string, err error) {
 // func (vps )
 
 func (vps *Vps) ExchangeKeyCheck() (my, you bool) {
-	pa := filepath.Join(ROOT, vps.msgto, "keys")
+	pa := Join(ROOT, vps.msgto, "keys")
 	err := vps.WithSftpRead(pa, os.O_RDONLY, func(fp io.ReadCloser) error {
 		buf, _ := ioutil.ReadAll(fp)
 		for _, l := range strings.Split(string(buf), "\n") {
@@ -302,7 +327,7 @@ func (vps *Vps) ExchangeKeyCheck() (my, you bool) {
 }
 
 func (vps *Vps) CloudFiles() (files []string) {
-	fsdir := filepath.Join(vps.myhome, "files")
+	fsdir := Join(vps.myhome, "files")
 	vps.WithSftpDir(fsdir, func(fs os.FileInfo) error {
 		if fs.IsDir() {
 			return nil
@@ -314,7 +339,7 @@ func (vps *Vps) CloudFiles() (files []string) {
 }
 
 func (vps *Vps) DownloadCloud(name string, dealStream func(reader io.Reader) error) {
-	src := filepath.Join(vps.myhome, "files", name)
+	src := Join(vps.myhome, "files", name)
 	vps.WithSftpRead(src, os.O_RDONLY, func(fp io.ReadCloser) error {
 		return dealStream(fp)
 	})
@@ -326,7 +351,7 @@ func (vps *Vps) SendKeyReq() (err error) {
 
 		return fmt.Errorf("offline/no set user")
 	}
-	msgpath := filepath.Join(ROOT, vps.msgto, "message.txt")
+	msgpath := Join(ROOT, vps.msgto, "message.txt")
 	err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, func(fp io.WriteCloser) error {
 		d := Message{
 			Date: fmt.Sprint(date),
@@ -346,7 +371,7 @@ func (vps *Vps) SendKeyTo(target, key string) (err error) {
 
 		return fmt.Errorf("offline/no set user")
 	}
-	msgpath := filepath.Join(ROOT, target, "message.txt")
+	msgpath := Join(ROOT, target, "message.txt")
 	err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, func(fp io.WriteCloser) error {
 		d := Message{
 			Date: fmt.Sprint(date),
@@ -362,11 +387,11 @@ func (vps *Vps) SendKeyTo(target, key string) (err error) {
 
 func (vps *Vps) WithSendFile(path string, dealStream func(networkFile io.Writer, rawFile io.Reader) (err error)) (err error) {
 	name := filepath.Base(path)
-	fpath := filepath.Join(ROOT, "tmp_file", name)
+	fpath := Join(ROOT, "tmp_file", name)
 	if vps.msgto == "" {
 		return
 	}
-	dpath := filepath.Join(ROOT, vps.msgto, "files", name)
+	dpath := Join(ROOT, vps.msgto, "files", name)
 
 	err = vps.WithSftpWrite(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, func(fp io.WriteCloser) error {
 		readfp, err := os.OpenFile(path, os.O_RDONLY, os.ModePerm)
@@ -398,7 +423,7 @@ func (vps *Vps) SendMsg(msg string, encrypted ...bool) (err error) {
 	if vps.state != TALKER_CONNECTED {
 		log.Println("not talker state ... wait auth...:", vps.state)
 	}
-	msgpath := filepath.Join(ROOT, vps.msgto, "message.txt")
+	msgpath := Join(ROOT, vps.msgto, "message.txt")
 	err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, func(fp io.WriteCloser) error {
 		d := Message{
 			Date: fmt.Sprint(date),
@@ -421,21 +446,21 @@ func (vps *Vps) HeartBeat() {
 	if !vps.hearted {
 		for {
 
-			time.Sleep(time.Duration(vps.heartInterval) * time.Second)
-			last_activate := filepath.Join(vps.myhome, "heart")
+			last_activate := Join(vps.myhome, "heart")
 			t := time.Now()
 			vps.WithSftpWrite(last_activate, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, func(fp io.WriteCloser) error {
 
 				_, er := fp.Write([]byte(t.Format(TIME_TMP)))
 				return er
 			})
+			time.Sleep(time.Duration(vps.heartInterval) * time.Second)
 			// fmt.Println("----- heart beat :", t)
 		}
 	}
 }
 
 func (vps *Vps) IfAlive() (out bool) {
-	last_activate := filepath.Join(ROOT, vps.msgto, "heart")
+	last_activate := Join(ROOT, vps.msgto, "heart")
 
 	err := vps.WithSftpRead(last_activate, os.O_RDONLY, func(fp io.ReadCloser) error {
 		buf, err := ioutil.ReadAll(fp)
@@ -459,7 +484,7 @@ func (vps *Vps) IfAlive() (out bool) {
 
 func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 
-	msgpath := filepath.Join(vps.myhome, "message.txt")
+	msgpath := Join(vps.myhome, "message.txt")
 	vps.WithSftpRead(msgpath, os.O_RDONLY|os.O_CREATE, func(fp io.ReadCloser) error {
 
 		buf, err := ioutil.ReadAll(fp)
@@ -509,7 +534,7 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 		return err
 	})
 	if len(msgs) > 0 {
-		msgpath = filepath.Join(vps.myhome, "message.history.txt")
+		msgpath = Join(vps.myhome, "message.history.txt")
 		err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_CREATE|os.O_APPEND, func(fp io.WriteCloser) error {
 			msg_string := ""
 			for _, m := range msgs {
@@ -523,7 +548,7 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 			return err
 		})
 		if err == nil {
-			err = vps.sftsess.Remove(filepath.Join(vps.myhome, "message.txt"))
+			err = vps.sftsess.Remove(Join(vps.myhome, "message.txt"))
 		} else {
 			log.Println("overmessge history err:", err)
 		}
@@ -537,7 +562,7 @@ func (vps *Vps) Contact() (users []*User, err error) {
 			return nil
 		}
 		if fs.IsDir() {
-			userinfo := filepath.Join(ROOT, fs.Name(), "heart")
+			userinfo := Join(ROOT, fs.Name(), "heart")
 			// fmt.Println(userinfo)
 			err = vps.WithSftpRead(userinfo, os.O_RDONLY, func(fp io.ReadCloser) error {
 				buf, err := ioutil.ReadAll(fp)
@@ -679,7 +704,7 @@ func (vps Vps) Rm(file string) bool {
 	if _, sess, err := vps.Connect(); err != nil {
 		return false
 	} else {
-		if err := sess.Run("rm " + filepath.Join("/tmp", file)); err != nil {
+		if err := sess.Run("rm " + Join("/tmp", file)); err != nil {
 			return false
 		} else {
 			return true
@@ -926,7 +951,7 @@ func Parse(sshStr string) *Vps {
 		v.IP = tail
 	}
 	v.name = name
-	v.myhome = filepath.Join(ROOT, name)
+	v.myhome = Join(ROOT, name)
 	v.signal = make(chan int, 10)
 	return v
 }
