@@ -84,14 +84,17 @@ func Join(root string, files ...string) string {
 	if !strings.HasSuffix(root, "/") {
 		fs += "/"
 	}
-	for _, f := range files {
+	L := len(files)
+	for n, f := range files {
 		f = strings.TrimSpace(f)
 		if strings.HasPrefix(f, "./") {
 			fs += f[2:]
 		} else if strings.HasPrefix(f, "/") {
 			fs = f
+		} else {
+			fs += f
 		}
-		if !strings.HasSuffix(root, "/") {
+		if n < L-1 && !strings.HasSuffix(root, "/") {
 			fs += "/"
 		}
 	}
