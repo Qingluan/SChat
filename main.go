@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"Chat/controller"
 
@@ -25,14 +27,18 @@ func main() {
 	ssh := ""
 	sendToName := ""
 	name := ""
+	Pass := ""
 	// R := false
 	flag.StringVar(&page, "p", "resources/pages/index.html", "set page")
 	flag.StringVar(&sendToName, "s", "", "set name")
 	flag.StringVar(&name, "u", "a", "set user name")
 	flag.StringVar(&ssh, "H", "://115.236.8.148:50022/docker-hub", "set page")
-	// flag.BoolVar(&R, "r", false, "true to send ")
-	flag.Parse()
+	flag.StringVar(&Pass, "P", "", "set password ")
 
+	flag.Parse()
+	if Pass != "" {
+		ssh += ":" + Pass
+	}
 	// // astilog.FlagInit()
 	chat, err := controller.NewChatRoom(name + ssh)
 	if err != nil {
@@ -59,13 +65,17 @@ func main() {
 		if strings.HasPrefix(line, "$") {
 			if line == "$ls" {
 				for _, user := range chat.Contact() {
-					fmt.Println(user.Name, user.Last())
+					fmt.Println(user.Name, time.Since(user.Last()))
 				}
 			} else if line == "$files" {
 				for _, f := range chat.CloudFiles() {
 					fmt.Println("[file]", f)
 				}
 				fmt.Println()
+			} else if line == "$hist" {
+				fmt.Println("[history ] pulling")
+				chat.History()
+
 			} else if strings.HasPrefix(line, "$get") {
 				name := strings.TrimSpace(strings.SplitN(line, "$get", 2)[1])
 				chat.GetFile(name)
@@ -74,7 +84,14 @@ func main() {
 				if err := chat.SendFile(name); err != nil {
 					log.Println("send file er:", err)
 				}
-
+			} else if strings.HasPrefix(line, "$clear") {
+				fs := strings.SplitN(line, "$clear", 2)
+				t, err := strconv.Atoi(fs[1])
+				if err != nil {
+					t = 5
+				}
+				chat.CloseWithClear(t)
+				fmt.Println("bye~~~", t, "second will clear all data")
 			} else {
 				chat.TalkTo(line[1:])
 				line = ""

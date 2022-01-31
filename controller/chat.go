@@ -21,6 +21,7 @@ type ChatRoom struct {
 func NewChatRoom(sshstr string) (chat *ChatRoom, err error) {
 	chat = new(ChatRoom)
 	chat.vps = Parse(sshstr)
+	SecurityCheckName(chat.vps.name)
 	chat.IP = chat.vps.IP
 	chat.stream, err = NewStreamWithAuthor(chat.vps.name)
 	chat.recvMsg = make(chan *Message, 1024)
@@ -81,6 +82,12 @@ func (chat *ChatRoom) Write(msg string) {
 	chat.vps.SendMsg(estr, true)
 }
 
+func (chat *ChatRoom) CloseWithClear(t int) {
+	if chat.vps != nil {
+		chat.vps.CloseWithClear(t)
+	}
+}
+
 func (chat *ChatRoom) Read() *Message {
 
 	// msg := new(Message)
@@ -102,6 +109,58 @@ func (chat *ChatRoom) Contact() (users []*User) {
 		log.Fatal("get contact err :", err)
 	}
 	return users
+}
+
+func (chat *ChatRoom) History() {
+	msgs, err := chat.vps.History()
+	if err != nil {
+		log.Println("read history :", err)
+		return
+	}
+	for _, msg := range msgs {
+		if msg.Crypted {
+			// log.Println("key:", chat.stream.Key)
+			// err := chat.stream.LoadCipherByAuthor(from)
+			stream, err := NewStreamWithAuthor(msg.From)
+			if err != nil {
+				log.Println("chat recv msg err: ", err)
+				return
+			}
+			// log.Println("key 2:", chat.stream.Key)
+			cipher, err := base64.RawStdEncoding.DecodeString(msg.Data)
+			if err != nil {
+				log.Println("chat recv msg base64 err: ", err)
+				return
+			}
+			// log.Println("key 3:", chat.stream.Key)
+
+			realMsg := stream.De(cipher)
+			// log.Println("key 4:", chat.stream.Key)
+
+			m := &Message{
+				Date: msg.Date,
+				Data: "[history] " + string(realMsg),
+				From: msg.From,
+			}
+
+			if chat.watch != nil {
+				go chat.watch(m)
+			}
+			chat.recvMsg <- m
+
+		} else {
+			m := &Message{
+				Date: msg.Date,
+				Data: "[history] " + msg.Data,
+				From: msg.From,
+			}
+
+			if chat.watch != nil {
+				go chat.watch(m)
+			}
+			chat.recvMsg <- m
+		}
+	}
 }
 
 func (chat *ChatRoom) SendFile(path string) (err error) {
@@ -138,13 +197,18 @@ func (chat *ChatRoom) SendFile(path string) (err error) {
 }
 
 func (chat *ChatRoom) GetFile(name string) (err error) {
+	dirs := "Downloads"
 	chat.vps.DownloadCloud(name, func(networkFile io.Reader) (err error) {
 		stream, err := NewStreamWithAuthor(chat.vps.name)
 		if err != nil {
 			log.Println("load straem err:", err)
 			return err
 		}
-		fp, err := os.OpenFile(name, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
+		if _, err := os.Stat(dirs); err != nil {
+			os.MkdirAll(dirs, os.ModePerm)
+		}
+		fpath := filepath.Join(dirs, name)
+		fp, err := os.OpenFile(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.ModePerm)
 		if err != nil {
 			log.Println("create local file err:", err)
 			return
