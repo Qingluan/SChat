@@ -64,9 +64,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	promptlabel := "msg"
+	promptlabel := "[no user talk] >"
 	chat.SetWacher(func(msg *controller.Message) {
-		line := color.New(color.FgGreen).Sprintf("[%s]", msg.From)
+		line := color.New(color.FgGreen).Sprintf("[%s] >", msg.From)
 		line += color.New(color.FgYellow).Sprintf(" -- %s\n\t", msg.Date)
 		line += color.New(color.FgHiWhite, color.Bold).Sprintln(msg.Data)
 		// fmt.Print(line, color.New(color.FgHiCyan).Sprint("\nsend msg or cmd $ls/$ >"))
@@ -105,8 +105,8 @@ func main() {
 		case "/clear":
 			SetDelayClear(chat)
 			// break
-		case "/ssh":
-			break
+		case "/quit":
+			os.Exit(0)
 		default:
 			// msg = out
 			chat.Write(out)
@@ -203,14 +203,16 @@ func SelectContact(chat *controller.ChatRoom) *controller.User {
 	}
 	prompt := promptui.Select{
 		Label: "select user to talk",
-		Items: users,
+		Items: userstr,
 	}
 
 	a, _, err := prompt.Run()
 	if err != nil {
 		return nil
 	}
-	return users[a]
+	u := users[a]
+	chat.TalkTo(u.Name)
+	return u
 }
 
 type Datas map[string]string
