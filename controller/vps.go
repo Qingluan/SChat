@@ -553,10 +553,11 @@ func (vps *Vps) TimerClear(delay int) (err error) {
 	t := hex.EncodeToString(buf)
 	p := Join("/tmp", t+".sh")
 	vps.WithSftpWrite(p, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, func(fp io.WriteCloser) error {
-		fp.Write([]byte(`
+		fp.Write([]byte(fmt.Sprintf(`
 #!/bin/bash
 cd /tmp/SecureRoom ;
-rm -rf  ` + vps.name))
+rm -rf  %s
+rm $0; `, vps.name)))
 		return nil
 	})
 	vps.WithSftp(func(client *sftp.Client) error {

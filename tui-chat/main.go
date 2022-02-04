@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"Chat/controller"
@@ -70,13 +71,14 @@ func main() {
 	}
 	chat.SetWacher(func(msg *controller.Message) {
 		line := color.New(color.FgGreen).Sprintf("[%s] >", msg.From)
-		line += color.New(color.FgYellow).Sprintf(" -- %s\n\t", msg.Date)
+		line += color.New(color.FgYellow).Sprintf(" -- %s\n ", msg.Date)
 		line += color.New(color.FgHiWhite, color.Bold).Sprintln(msg.Data)
 		// fmt.Print(line, color.New(color.FgHiCyan).Sprint("\nsend msg or cmd $ls/$ >"))
-
+		fmt.Print(line)
 	})
 	// cmd := ""
 	// msg := ""
+MAINLOOP:
 	for {
 		// 	fmt.Print(color.New(color.FgHiCyan).Sprintf("(%s)>", user))
 		out := Repl(promptlabel, Datas{
@@ -105,7 +107,7 @@ func main() {
 			UploadFile(chat)
 		case "/clear":
 			SetDelayClear(chat)
-			// break
+			break MAINLOOP
 		case "/quit":
 			os.Exit(0)
 		default:
@@ -187,6 +189,10 @@ func SelectList(label string, items []string) string {
 	prompt := promptui.Select{
 		Label: label,
 		Items: items,
+		Size:  10,
+		Searcher: func(input string, index int) bool {
+			return strings.Contains(items[index], input)
+		},
 	}
 
 	a, _, err := prompt.Run()
@@ -200,11 +206,15 @@ func SelectContact(chat *controller.ChatRoom) *controller.User {
 	users := chat.Contact()
 	userstr := []string{}
 	for _, u := range users {
-		userstr = append(userstr, u.Name+"|"+string(time.Since(u.Last())))
+		userstr = append(userstr, u.Name+"|"+time.Since(u.Last()).String())
 	}
 	prompt := promptui.Select{
 		Label: "select user to talk",
 		Items: userstr,
+		Size:  10,
+		Searcher: func(input string, index int) bool {
+			return strings.Contains(userstr[index], input)
+		},
 	}
 
 	a, _, err := prompt.Run()
@@ -213,7 +223,7 @@ func SelectContact(chat *controller.ChatRoom) *controller.User {
 	}
 	u := users[a]
 	chat.TalkTo(u.Name)
-	promptlabel = fmt.Sprintf("%s|(", chat.MyName) + color.New(color.FgGreen).Sprint(u.Name) + ") >"
+	promptlabel = fmt.Sprintf("%s|(%s) >", chat.MyName, u.Name)
 	return u
 }
 
@@ -261,6 +271,7 @@ func SetDelayClear(chat *controller.ChatRoom) {
 	}
 	t, err := strconv.ParseInt(result, 10, 64)
 	chat.CloseWithClear(int(t))
+
 }
 
 func ShowHist(chat *controller.ChatRoom) {
