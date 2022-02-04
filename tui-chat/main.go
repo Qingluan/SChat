@@ -23,12 +23,14 @@ var (
 		"Download Files from clound",
 		"Send File to other",
 		"Set time to clear my data",
+		"Quit SSH Msg",
 	}
 
 	I_CONTACT = 0
 	I_DOWN    = 1
 	I_SEND    = 2
 	I_CLEAR   = 3
+	I_EXIT    = 4
 )
 
 func Input(msg string) string {
@@ -82,6 +84,7 @@ func main() {
 			"/down":   "downlaod file in clound",
 			"/upload": "upload file to other user",
 			"/clear":  "set delay time to clear my data in remote",
+			"/quit":   "quit ssh msger",
 		})
 		switch out {
 		case "/":
@@ -102,6 +105,8 @@ func main() {
 		case "/clear":
 			SetDelayClear(chat)
 			// break
+		case "/ssh":
+			break
 		default:
 			// msg = out
 			chat.Write(out)
@@ -169,6 +174,8 @@ func SelectMenu(chat *controller.ChatRoom) string {
 		DownFile(chat)
 	case I_SEND:
 		UploadFile(chat)
+	case I_EXIT:
+		os.Exit(0)
 
 	}
 	return ""
