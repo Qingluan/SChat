@@ -12,6 +12,7 @@ import (
 type ChatRoom struct {
 	IP       string
 	nowMsgTo string
+	MyName   string
 	vps      *Vps
 	stream   *Stream
 	recvMsg  chan *Message
@@ -25,6 +26,7 @@ func NewChatRoom(sshstr string) (chat *ChatRoom, err error) {
 	chat.IP = chat.vps.IP
 	chat.stream, err = NewStreamWithAuthor(chat.vps.name)
 	chat.recvMsg = make(chan *Message, 1024)
+	chat.MyName = chat.vps.name
 	go func() {
 		chat.vps.OnMessage(func(from, msg string, crypted bool, date time.Time) {
 			var m *Message

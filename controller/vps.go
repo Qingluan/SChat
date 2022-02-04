@@ -603,27 +603,29 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 				continue
 			}
 
-			switch vps.state {
-			case TALKER_CONNECTED:
-				msgs = append(msgs, onemsg)
-			default:
-				if strings.HasPrefix(onemsg.From, "${") {
-					if strings.HasPrefix(onemsg.From, "${no-key}:") {
-						reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${no-key}:", 2)[1])
-						if key := GetKey(vps.name); key != "" {
-							// fmt.Println("kkk:", reqName)
-							go vps.SendKeyTo(reqName, key)
-							dealSpecialMessage = true
-						}
-					} else if strings.HasPrefix(onemsg.From, "${key}:") {
-						reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${key}:", 2)[1])
-						vps.state |= TALKER_I_HAVE
-						// fmt.Println("i got your key :", reqName, onemsg.Data)
-						go SetKey(reqName, onemsg.Data)
+			// switch vps.state {
+			// case TALKER_CONNECTED:
+			// default:
+			if strings.HasPrefix(onemsg.From, "${") {
+				if strings.HasPrefix(onemsg.From, "${no-key}:") {
+					reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${no-key}:", 2)[1])
+					if key := GetKey(vps.name); key != "" {
+						// fmt.Println("kkk:", reqName)
+						go vps.SendKeyTo(reqName, key)
 						dealSpecialMessage = true
 					}
+				} else if strings.HasPrefix(onemsg.From, "${key}:") {
+					reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${key}:", 2)[1])
+					vps.state |= TALKER_I_HAVE
+					// fmt.Println("i got your key :", reqName, onemsg.Data)
+					go SetKey(reqName, onemsg.Data)
+					dealSpecialMessage = true
 				}
+			} else {
+				msgs = append(msgs, onemsg)
+
 			}
+			// }
 
 		}
 		return err
@@ -692,14 +694,17 @@ func (vps *Vps) backgroundRecvMsgs() {
 	// fmt.Println("----- start recving msg -----")
 BACKEND:
 	for {
-
+		// fmt.Println("do some")
 		select {
 		case <-tick.C:
+
+			// fmt.Println("recving ")
 			if msgs, err := vps.RecvMsg(); err != nil {
 				log.Println("[recv failed]:", err)
 				time.Sleep(1 * time.Second)
 				vps.Connect()
 			} else {
+				// fmt.Println("recved:", len(msgs))
 				for _, msg := range msgs {
 					// fmt.Println(msg.From)
 					t, er := time.Parse(TIME_TMP, msg.Date)

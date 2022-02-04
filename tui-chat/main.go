@@ -40,6 +40,10 @@ func Input(msg string) string {
 	return string(line)
 }
 
+var (
+	promptlabel = "[no user talk] >"
+)
+
 func main() {
 	ssh := ""
 	sendToName := ""
@@ -64,7 +68,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	promptlabel := "[no user talk] >"
 	chat.SetWacher(func(msg *controller.Message) {
 		line := color.New(color.FgGreen).Sprintf("[%s] >", msg.From)
 		line += color.New(color.FgYellow).Sprintf(" -- %s\n\t", msg.Date)
@@ -90,10 +93,8 @@ func main() {
 		case "/":
 			SelectMenu(chat)
 		case "/user":
-			if user := SelectContact(chat); user != nil {
-				promptlabel = fmt.Sprintf("(%s) >", color.New(color.FgGreen).Sprint(user.Name))
-				chat.TalkTo(user.Name)
-			}
+			SelectContact(chat)
+
 		case "/hist":
 			ShowHist(chat)
 		case "/file":
@@ -212,6 +213,7 @@ func SelectContact(chat *controller.ChatRoom) *controller.User {
 	}
 	u := users[a]
 	chat.TalkTo(u.Name)
+	promptlabel = fmt.Sprintf("%s|(", chat.MyName) + color.New(color.FgGreen).Sprint(u.Name) + ") >"
 	return u
 }
 
