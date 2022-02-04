@@ -1,3 +1,6 @@
 SshChat
 Chat
 *tui-chat
+examples/test
+examples/*.a
+examples/*.so
