@@ -5,3 +5,5 @@ examples/test
 *.a
 *.so
 */libschat
+libsshmsg/libschat.h
+*/test
