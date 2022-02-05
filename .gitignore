@@ -4,4 +4,4 @@ Chat
 examples/test
 *.a
 *.so
-*.h
+*/libschat
