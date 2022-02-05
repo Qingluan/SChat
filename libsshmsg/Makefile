@@ -4,14 +4,16 @@ ODIR=.
 LDIR =../lib
 RELEASE = .
 
-libschat.a:
+OBJ = $(RELEASE)/libschat.a
+
+%.a:
 	go build -o $(RELEASE)/libschat.a -buildmode=c-archive $(ODIR)/main.go
 
-test: 
+test: $(OBJ)
 	$(CC) -o $@ main.c  libschat.a $(CFLAGS)
 	
 
 .PHONY: clean
 
 clean:
-	rm $(ODIR)/*.a ; rm $(ODIR)/libschat.h; rm $(RELEASE)/libschat;
+	rm test ;rm rm $(RELEASE)/*.a ; rm $(ODIR)/libschat.h; rm $(RELEASE)/libschat; go clean -cache

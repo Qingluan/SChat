@@ -2,6 +2,7 @@ package main
 
 /*
 #cgo CFLAGS: -g -Wall -Iinclude
+#cgo LDFLAGS: -Wl,--allow-multiple-definition
 #include "bridge.h"
 */
 import "C"

@@ -30,7 +30,12 @@ main(const int argc, char*argv[]){
         printf("[%d/%d] name: %s\n",i,users->num,(User *)(users->users +i)->Name);
     }
     printf("users num: %d\nUser no.3's info : %s\n", users->num,UserActive(&users->users[2]));
-    
+    if (UserTalkTo("lin3")){
+        printf("ok\n");
+        if (WriteMessage("hallo this message write from C lang !")){
+            printf("Write Successful!");
+        };
+    }
     do{
         /* code */
         sleep(2);
