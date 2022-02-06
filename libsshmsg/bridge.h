@@ -4,13 +4,24 @@
 #define BOOL int
 #define TRUE 1
 #define FALSE 0
+#define MSG_GROUP 1
+#define MSG_NORMAL 0
 
 typedef struct Cmsg{
 	BOOL Crypted;
+	int Tp;
+	char* Group;
 	char* Date;
 	char* From;
 	char* Data;
 }Cmsg;
+
+typedef struct TmpFiles{
+	int FileCount;
+	int used;
+	char ** FileName;
+
+} TmpFiles;
 
 typedef struct User{
 	BOOL State;
@@ -46,14 +57,35 @@ bridge_call(Call cb,char* str)
 
 static
 Cmsg*
-create_cmsg(char * msg, char * from , char * date, int crypted){
+create_cmsg(char *group,char * msg, char * from , char * date, int crypted, int tp){
 	Cmsg* cmsg = (Cmsg *) calloc(1,sizeof(Cmsg));
 	cmsg->Date = date;
 	cmsg->Data = msg;
 	cmsg->From = from;
 	cmsg->Crypted = crypted;
+	cmsg->Tp = tp;
+	cmsg->Group = group;
+	
 	return cmsg;
 }
+
+static
+TmpFiles*
+create_files(int fcount ){
+	TmpFiles * tfiles = (TmpFiles*) calloc(1, sizeof(TmpFiles));
+	tfiles->FileName = (char **) calloc(fcount,sizeof(char *));
+	tfiles->FileCount = fcount;
+	return tfiles;
+}
+
+static
+int
+tmp_add_file(TmpFiles*tmpfile,char *fname){
+	tmpfile->FileName[tmpfile->used] = fname;
+	tmpfile->used++;
+	return tmpfile->used;
+}
+
 
 static
 User*

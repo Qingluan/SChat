@@ -73,7 +73,7 @@ func OnMessage(call C.MsgCallback) {
 			// 	From:    C.CString(msg.From),
 			// 	Crypted: i,
 			// }
-			cmsg := C.create_cmsg(C.CString(msg.Data), C.CString(msg.From), C.CString(msg.Date), C.BOOL(i))
+			cmsg := C.create_cmsg(C.CString(msg.Group), C.CString(msg.Data), C.CString(msg.From), C.CString(msg.Date), C.BOOL(i), C.int(msg.Tp))
 			C.set_on_message(call, cmsg)
 		})
 	}
@@ -120,6 +120,57 @@ func WriteMessage(msg *C.char) int {
 		return len(str)
 	}
 	return 0
+}
+
+//export WriteGroupMessage
+func WriteGroupMessage(group *C.char, msg *C.char) int {
+	str := C.GoString(msg)
+	if GlobalChat != nil {
+		GlobalChat.WriteGroup(C.GoString(group), str)
+		return len(str)
+	}
+	return 0
+}
+
+//export ChatJoinGroup
+func ChatJoinGroup(group *C.char) {
+	str := C.GoString(group)
+	if GlobalChat != nil {
+		GlobalChat.JoinGroup(str)
+	}
+}
+
+//export ChatAllowJoin
+func ChatAllowJoin(group *C.char, username *C.char) {
+	str := C.GoString(group)
+	ustr := C.GoString(username)
+	if GlobalChat != nil {
+		GlobalChat.Permitt(str, ustr)
+	}
+}
+
+//export ChatCreateGroup
+func ChatCreateGroup(group *C.char) {
+	str := C.GoString(group)
+	if GlobalChat != nil {
+		GlobalChat.CreateGroup(str)
+	}
+}
+
+//export ChatCloudFiles
+func ChatCloudFiles() *C.TmpFiles {
+	var fs []string
+	if GlobalChat != nil {
+		fs = GlobalChat.CloudFiles()
+
+	}
+	cfs := C.create_files(C.int(len(fs)))
+
+	for _, f := range fs {
+		C.tmp_add_file(cfs, C.CString(f))
+	}
+
+	return cfs
 }
 
 func main() {
