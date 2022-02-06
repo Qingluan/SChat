@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/base64"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -19,21 +20,36 @@ type ChatRoom struct {
 	watch    func(msg *Message)
 }
 
-func NewChatRoom(sshstr string) (chat *ChatRoom, err error) {
+/*NewChatRoom
+HOME default is '~'
+*/
+func NewChatRoom(sshstr string, HomePath ...string) (chat *ChatRoom, err error) {
 	chat = new(ChatRoom)
+	if HomePath != nil {
+		fp, err := os.Stat(HomePath[0])
+		if err == nil && fp.IsDir() {
+			SetHome(HomePath[0])
+		}
+	}
 	chat.vps = Parse(sshstr)
 	SecurityCheckName(chat.vps.name)
 	chat.IP = chat.vps.IP
-	chat.stream, err = NewStreamWithAuthor(chat.vps.name)
+	chat.stream, err = NewStreamWithAuthor(chat.vps.name, false)
 	chat.recvMsg = make(chan *Message, 1024)
 	chat.MyName = chat.vps.name
 	go func() {
-		chat.vps.OnMessage(func(from, msg string, crypted bool, date time.Time) {
+		chat.vps.OnMessage(func(group, from, msg string, crypted bool, tp int, date time.Time) {
 			var m *Message
 			if crypted {
 				// log.Println("key:", chat.stream.Key)
 				// err := chat.stream.LoadCipherByAuthor(from)
-				stream, err := NewStreamWithAuthor(from)
+				grouped := false
+				author := from
+				if tp == MSG_TP_GROUP {
+					grouped = true
+					author = group
+				}
+				stream, err := NewStreamWithAuthor(author, grouped)
 				if err != nil {
 					log.Println("chat recv msg err: ", err)
 					return
@@ -50,16 +66,20 @@ func NewChatRoom(sshstr string) (chat *ChatRoom, err error) {
 				// log.Println("key 4:", chat.stream.Key)
 
 				m = &Message{
-					Date: date.Format(TIME_TMP),
-					Data: string(realMsg),
-					From: from,
+					Date:  date.Format(TIME_TMP),
+					Data:  string(realMsg),
+					From:  from,
+					Group: group,
+					Tp:    tp,
 				}
 
 			} else {
 				m = &Message{
-					Date: date.Format(TIME_TMP),
-					Data: string(msg),
-					From: from,
+					Date:  date.Format(TIME_TMP),
+					Data:  string(msg),
+					From:  from,
+					Tp:    tp,
+					Group: group,
 				}
 			}
 			if chat.watch != nil {
@@ -84,6 +104,41 @@ func (chat *ChatRoom) Write(msg string) {
 	chat.vps.SendMsg(estr, true)
 }
 
+func (chat *ChatRoom) WriteGroup(gname, msg string) {
+	// fmt.Println("run write")
+	key := GetGroupKey(gname)
+	if key != "" {
+		steam, err := NewStreamWithAuthor(gname, true)
+		if err != nil {
+			log.Println("load gkey err:", err)
+			return
+		}
+		e := steam.En([]byte(msg))
+		estr := base64.RawStdEncoding.EncodeToString(e)
+		err = chat.vps.SendGroupMsg(gname, estr, true)
+		if err != nil {
+			log.Println("write group err:", err)
+		}
+	} else {
+		fmt.Println("can not found grou key:", gname)
+	}
+}
+
+func (chat *ChatRoom) CreateGroup(name string) {
+	chat.vps.CreateGroup(name)
+}
+func (chat *ChatRoom) RemoveGroup(name string) {
+	chat.vps.RemoveGroup(name)
+}
+
+func (chat *ChatRoom) JoinGroup(name string) {
+	chat.vps.JoinGroup(name)
+}
+
+func (chat *ChatRoom) Permitt(gname, uname string) {
+	chat.vps.AllowJoinGroup(gname, uname)
+}
+
 func (chat *ChatRoom) CloseWithClear(t int) {
 	if chat.vps != nil {
 		chat.vps.CloseWithClear(t)
@@ -98,7 +153,7 @@ func (chat *ChatRoom) Read() *Message {
 }
 
 func (chat *ChatRoom) Login() error {
-	return chat.vps.Init(LocalKeys())
+	return chat.vps.Init()
 }
 
 func (chat *ChatRoom) SetWacher(call func(msg *Message)) {
@@ -123,7 +178,11 @@ func (chat *ChatRoom) History() {
 		if msg.Crypted {
 			// log.Println("key:", chat.stream.Key)
 			// err := chat.stream.LoadCipherByAuthor(from)
-			stream, err := NewStreamWithAuthor(msg.From)
+			goruped := false
+			if msg.Tp == MSG_TP_GROUP {
+				goruped = true
+			}
+			stream, err := NewStreamWithAuthor(msg.From, goruped)
 			if err != nil {
 				log.Println("chat recv msg err: ", err)
 				return
@@ -165,7 +224,7 @@ func (chat *ChatRoom) History() {
 	}
 }
 
-func (chat *ChatRoom) SendFile(path string) (err error) {
+func (chat *ChatRoom) SendFile(path string, groupName ...string) (err error) {
 	name := filepath.Base(path)
 	f, err := os.Stat(path)
 	if err != nil || f.IsDir() {
@@ -177,9 +236,21 @@ func (chat *ChatRoom) SendFile(path string) (err error) {
 		log.Println("no target !")
 		return
 	}
+	grouped := false
+	author := chat.nowMsgTo
+
+	if groupName != nil {
+		grouped = true
+		author = groupName[0]
+		if exists, verified := chat.vps.GroupCheck(author); !exists || !verified {
+			log.Println("Group Verify failed exists:", exists, "key exists:", verified)
+			return
+		}
+	}
 
 	err = chat.vps.WithSendFile(path, func(networkFile io.Writer, rawFile io.Reader) (err error) {
-		stream, err := NewStreamWithAuthor(chat.nowMsgTo)
+
+		stream, err := NewStreamWithAuthor(author, grouped)
 		if err != nil {
 			log.Println("load straem err:", err)
 			return err
@@ -190,7 +261,7 @@ func (chat *ChatRoom) SendFile(path string) (err error) {
 			}
 		})
 		return nil
-	})
+	}, groupName...)
 	if err != nil {
 		return err
 	}
@@ -198,10 +269,31 @@ func (chat *ChatRoom) SendFile(path string) (err error) {
 	return nil
 }
 
-func (chat *ChatRoom) GetFile(name string) (err error) {
+func (chat *ChatRoom) GroupVerify(name string) bool {
+	if exists, verified := chat.vps.GroupCheck(name); !exists || !verified {
+		log.Println("Group Verify failed exists:", exists, "key exists:", verified)
+		return false
+	}
+	return true
+}
+
+func (chat *ChatRoom) GetFile(name string, groupName ...string) (err error) {
 	dirs := "Downloads"
+
+	grouped := false
+	author := chat.vps.name
+
+	if groupName != nil {
+		grouped = true
+		author = groupName[0]
+		if exists, verified := chat.vps.GroupCheck(author); !exists || !verified {
+			log.Println("Group Verify failed exists:", exists, "key exists:", verified)
+			return
+		}
+	}
+
 	chat.vps.DownloadCloud(name, func(networkFile io.Reader) (err error) {
-		stream, err := NewStreamWithAuthor(chat.vps.name)
+		stream, err := NewStreamWithAuthor(author, grouped)
 		if err != nil {
 			log.Println("load straem err:", err)
 			return err
@@ -227,6 +319,11 @@ func (chat *ChatRoom) GetFile(name string) (err error) {
 	return nil
 }
 
-func (chat *ChatRoom) CloudFiles() (fs []string) {
-	return chat.vps.CloudFiles()
+func (chat *ChatRoom) CloudFiles(groupName ...string) (fs []string) {
+	if groupName != nil {
+		if !chat.GroupVerify(groupName[0]) {
+			return
+		}
+	}
+	return chat.vps.CloudFiles(groupName...)
 }

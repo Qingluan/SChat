@@ -20,7 +20,8 @@ import (
 
 var (
 	// HOME, _  = os.UserHomeDir()
-	KeysHome = filepath.Join(HOME, ".sshchat", "keys")
+	KeysHome      = filepath.Join(HOME, ".sshchat", "keys")
+	GroupKeysHome = filepath.Join(HOME, ".sshchat", "gkeys")
 )
 
 const FILE_CIPHER_HEADER_LEN = 188
@@ -61,7 +62,7 @@ func NewStreamWithRandomeKey() (stream *Stream, err error) {
 	return
 }
 
-func NewStreamWithAuthor(author string) (stream *Stream, err error) {
+func NewStreamWithAuthor(author string, loadGroupKey bool) (stream *Stream, err error) {
 
 	_, err = os.Stat(KeysHome)
 	if err != nil {
@@ -70,19 +71,28 @@ func NewStreamWithAuthor(author string) (stream *Stream, err error) {
 	}
 	// k := stream.Key
 	var key64 string
-	tmpkey := make([]byte, 32)
+	// tmpkey := make([]byte, 32)
 	saved := true
-	k, err := ioutil.ReadFile(filepath.Join(KeysHome, author+".key"))
-	if err != nil {
-		log.Println("no such author's key saved in local system!:", author, ".. so  will create new key!!!")
-		// return
-		rand.Read(tmpkey)
-		saved = false
-		if len(tmpkey) < 32 {
-			tmpkey = append(tmpkey, []byte("asfasivbniasgfbiasgbiasghiashfiashf13412$RASFWEAT!%!@%TRASFSDAT@!#%$!@$")[:32-len(tmpkey)]...)
-		}
+	// k, err := ioutil.ReadFile(filepath.Join(KeysHome, author+".key"))
+	k := ""
+	if loadGroupKey {
+		k = GetGroupKey(author)
+	} else {
+		k = GetKey(author)
 
-		key64 = base64.StdEncoding.EncodeToString(tmpkey)
+	}
+
+	if k == "" {
+		log.Println("no such author's key saved in local system!:", author, ".. so  will create new key!!!")
+		key64 = NewKey()
+		// // return
+		// rand.Read(tmpkey)
+		saved = false
+		// if len(tmpkey) < 32 {
+		// 	tmpkey = append(tmpkey, []byte("asfasivbniasgfbiasgbiasghiashfiashf13412$RASFWEAT!%!@%TRASFSDAT@!#%$!@$")[:32-len(tmpkey)]...)
+		// }
+
+		// key64 = base64.StdEncoding.EncodeToString(tmpkey)
 
 	} else {
 		key64 = strings.TrimSpace(string(k))
@@ -113,7 +123,7 @@ func NewStreamWithAuthor(author string) (stream *Stream, err error) {
 	stream.nonceSize = (*stream.cipher).NonceSize()
 
 	if !saved {
-		stream.SaveKey(author)
+		stream.SaveKey(author, loadGroupKey)
 	}
 	return
 }
@@ -145,18 +155,22 @@ func NewStreamWithBase64Key(keyb64 string) (stream *Stream, err error) {
 	return
 }
 
-func (stream *Stream) SaveKey(author string) {
+func (stream *Stream) SaveKey(author string, grouped bool) {
 	stream.Author = author
-	_, err := os.Stat(KeysHome)
+	khome := KeysHome
+	if grouped {
+		khome = GroupKeysHome
+	}
+	_, err := os.Stat(khome)
 	if err != nil {
-		os.MkdirAll(KeysHome, os.ModePerm)
+		os.MkdirAll(khome, os.ModePerm)
 	}
 	k := stream.Key
 	author = strings.TrimSpace(author)
 	author = strings.ReplaceAll(author, " ", "_")
 	author = strings.ReplaceAll(author, "/", "_")
 
-	ioutil.WriteFile(filepath.Join(KeysHome, author+".key"), []byte(k), os.ModePerm)
+	ioutil.WriteFile(filepath.Join(khome, author+".key"), []byte(k), os.ModePerm)
 }
 
 func (stream *Stream) LoadCipherByAuthor(author string) (err error) {
@@ -542,7 +556,7 @@ func (stream *Stream) DecryptFile(cipherFile, plainFile string, bar ...func(int6
 	return
 }
 
-func VerifyKey(name, mac string) (exists bool) {
+func VerifyKey(name, mac string) (exists, group bool) {
 
 	_, err := os.Stat(KeysHome)
 	if err != nil {
@@ -568,14 +582,46 @@ func VerifyKey(name, mac string) (exists bool) {
 			b := md5.Sum([]byte(k))
 			res := hex.EncodeToString(b[:])
 			if res == strings.TrimSpace(mac) {
-				return true
-
+				exists = true
+				break
 			}
-		} else {
-			// fmt.Println("com", []byte(test), []byte(name))
 		}
 	}
-	return false
+	if exists {
+		return
+	}
+	_, err = os.Stat(GroupKeysHome)
+	if err != nil {
+		os.MkdirAll(GroupKeysHome, os.ModePerm)
+	}
+	keys, err = os.ReadDir(GroupKeysHome)
+	if err != nil {
+		log.Println("load keys list err:", err)
+	}
+	// test = name + ".key"
+	// found := false
+	for _, k := range keys {
+		n := strings.TrimSpace(k.Name())
+		// fmt.Println("+", n, author, author+".key", n == author+".key")
+		if test == n {
+			// fmt.Println("+", name, test)
+			key, err := ioutil.ReadFile(filepath.Join(GroupKeysHome, n))
+			if err != nil {
+				log.Println("load keys err:", err)
+				continue
+			}
+			k := strings.TrimSpace(string(key))
+			b := md5.Sum([]byte(k))
+			res := hex.EncodeToString(b[:])
+			if res == strings.TrimSpace(mac) {
+				exists = true
+				group = true
+				break
+			}
+		}
+	}
+
+	return
 }
 
 func LocalKeys() (kmac []string) {
@@ -604,6 +650,72 @@ func LocalKeys() (kmac []string) {
 	return
 }
 
+func LocalGroupKeys() (kmac []string) {
+
+	_, err := os.Stat(GroupKeysHome)
+	if err != nil {
+		os.MkdirAll(GroupKeysHome, os.ModePerm)
+	}
+	keys, err := os.ReadDir(GroupKeysHome)
+	if err != nil {
+		log.Println("load keys list err:", err)
+	}
+	// found := false
+	for _, k := range keys {
+		n := strings.TrimSpace(k.Name())
+		key, err := ioutil.ReadFile(filepath.Join(GroupKeysHome, n))
+		if err != nil {
+			log.Println("load keys err:", err)
+			continue
+		}
+		k := strings.TrimSpace(string(key))
+		b := md5.Sum([]byte(k))
+		res := hex.EncodeToString(b[:])
+		kmac = append(kmac, strings.SplitN(n, ".key", 2)[0]+":"+res)
+	}
+	return
+}
+
+func GetGroupKey(name string) string {
+
+	_, err := os.Stat(GroupKeysHome)
+	if err != nil {
+		os.MkdirAll(GroupKeysHome, os.ModePerm)
+	}
+	n := ""
+	if strings.Contains(name, GROUP_TAIL) {
+		n = strings.TrimSpace(name) + ".key"
+	} else {
+		n = strings.TrimSpace(name) + GROUP_TAIL + ".key"
+	}
+	key, err := ioutil.ReadFile(filepath.Join(GroupKeysHome, n))
+	if err != nil {
+		log.Println("load keys err:", err)
+		return ""
+	}
+	k := strings.TrimSpace(string(key))
+	return k
+}
+
+func SetGroupKey(name, key string) {
+
+	_, err := os.Stat(GroupKeysHome)
+	if err != nil {
+		os.MkdirAll(GroupKeysHome, os.ModePerm)
+	}
+	n := ""
+	if strings.Contains(name, GROUP_TAIL) {
+		n = strings.TrimSpace(name) + ".key"
+	} else {
+		n = strings.TrimSpace(name) + GROUP_TAIL + ".key"
+	}
+	err = ioutil.WriteFile(filepath.Join(GroupKeysHome, n), []byte(key), os.ModePerm)
+	if err != nil {
+		log.Println("load keys err:", err)
+	}
+
+}
+
 func GetKey(name string) string {
 
 	_, err := os.Stat(KeysHome)
@@ -618,6 +730,16 @@ func GetKey(name string) string {
 	}
 	k := strings.TrimSpace(string(key))
 	return k
+}
+func NewKey() string {
+
+	tmpkey := make([]byte, 32)
+	rand.Read(tmpkey)
+	// saved = false
+	if len(tmpkey) < 32 {
+		tmpkey = append(tmpkey, []byte("asfasivbniasgfbiasgbiasghiashfiashf13412$RASFWEAT!%!@%TRASFSDAT@!#%$!@$")[:32-len(tmpkey)]...)
+	}
+	return base64.StdEncoding.EncodeToString(tmpkey)
 }
 
 func SetKey(name, key string) {
@@ -638,4 +760,10 @@ func ToMd5(key string) string {
 	b := md5.Sum([]byte(key))
 	res := hex.EncodeToString(b[:])
 	return res
+}
+
+func SetHome(h string) {
+	HOME = h
+	KeysHome = filepath.Join(HOME, ".sshchat", "keys")
+	GroupKeysHome = filepath.Join(HOME, ".sshchat", "gkeys")
 }

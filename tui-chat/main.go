@@ -50,15 +50,21 @@ func main() {
 	sendToName := ""
 	name := ""
 	Pass := ""
+	Home := ""
 	// R := false
 	flag.StringVar(&sendToName, "s", "", "set name")
 	flag.StringVar(&name, "u", "a", "set user name")
 	flag.StringVar(&ssh, "H", "://115.236.8.148:50022/docker-hub", "set page")
 	flag.StringVar(&Pass, "P", "", "set password ")
+	flag.StringVar(&Home, "home", "", "set password ")
 
 	flag.Parse()
 	if Pass != "" {
 		ssh += ":" + Pass
+	}
+	if Home != "" {
+		log.Println("Use New Home:", Home)
+		controller.SetHome(Home)
 	}
 	// // astilog.FlagInit()
 	chat, err := controller.NewChatRoom(name + ssh)
@@ -82,20 +88,34 @@ MAINLOOP:
 	for {
 		// 	fmt.Print(color.New(color.FgHiCyan).Sprintf("(%s)>", user))
 		out := Repl(promptlabel, Datas{
-			"/":       "to menu",
-			"/user":   "show users to talk",
-			"/hist":   "show history",
-			"/file":   "show cloud files",
-			"/down":   "downlaod file in clound",
-			"/upload": "upload file to other user",
-			"/clear":  "set delay time to clear my data in remote",
-			"/quit":   "quit ssh msger",
+			"/":         "to menu",
+			"/user":     "show users to talk",
+			"/hist":     "show history",
+			"/file":     "show cloud files",
+			"/down":     "downlaod file in clound",
+			"/upload":   "upload file to other user",
+			"/clear":    "set delay time to clear my data in remote",
+			"/quit":     "quit ssh msger",
+			"/newgroup": "create new group",
+			"/allow":    "allow who join which group",
+			"/join":     "join which group",
+			"/ls":       "show contact and groups",
+			"/del":      "remove group",
 		})
 		switch out {
 		case "/":
 			SelectMenu(chat)
 		case "/user":
 			SelectContact(chat)
+		case "/ls":
+			for _, u := range chat.Contact() {
+				if strings.HasSuffix(u.Name, controller.GROUP_TAIL) {
+					fmt.Println("[Group] ", u.Name)
+				} else {
+					fmt.Println(u.Name)
+				}
+
+			}
 
 		case "/hist":
 			ShowHist(chat)
@@ -108,11 +128,55 @@ MAINLOOP:
 		case "/clear":
 			SetDelayClear(chat)
 			break MAINLOOP
+
 		case "/quit":
 			os.Exit(0)
+
 		default:
-			// msg = out
-			chat.Write(out)
+			if strings.HasPrefix(out, "/newgroup") {
+				gname := strings.TrimSpace(strings.SplitN(out, "/newgroup", 2)[1])
+				if gname != "" {
+					controller.SecurityCheckName(gname)
+					chat.CreateGroup(gname)
+
+				}
+			} else if strings.HasPrefix(out, "/join") {
+				gname := strings.TrimSpace(strings.SplitN(out, "/join", 2)[1])
+				if gname != "" {
+					controller.SecurityCheckName(gname)
+					fmt.Println("try join ", gname)
+					chat.JoinGroup(gname)
+				}
+			} else if strings.HasPrefix(out, "/allow") {
+				gnameAndReq := strings.TrimSpace(strings.SplitN(out, "/allow", 2)[1])
+				if gnameAndReq != "" {
+					fs := strings.Fields(gnameAndReq)
+					if len(fs) == 2 {
+						controller.SecurityCheckName(fs[1])
+						controller.SecurityCheckName(fs[0])
+						log.Println("permit ", fs[1], "join", fs[0])
+						chat.Permitt(fs[1], fs[0])
+					}
+				}
+			} else if strings.HasPrefix(out, "/del") {
+				gname := strings.TrimSpace(strings.SplitN(out, "/del", 2)[1])
+				if gname != "" {
+					controller.SecurityCheckName(gname)
+					fmt.Println("try delete group ", gname)
+					chat.RemoveGroup(gname)
+				}
+			} else {
+				if strings.HasPrefix(out, "[") && strings.Contains(out, "]") {
+					fs := strings.SplitN(out[1:], "]", 2)
+					gname := strings.TrimSpace(fs[0])
+					msg := strings.TrimSpace(fs[1])
+					chat.WriteGroup(gname, msg)
+				} else {
+					chat.Write(out)
+
+				}
+
+			}
 		}
 		// fmt.Scanln(&line)
 		// line := Input("send msg or cmd $ls/$ >")
@@ -242,6 +306,28 @@ func Repl(label string, suggest Datas) string {
 }
 
 func UploadFile(chat *controller.ChatRoom) {
+	validate := func(input string) error {
+		f, err := os.Stat(input)
+		if err != nil {
+			return errors.New("not exists path !")
+		}
+		if f.IsDir() {
+			return errors.New("must be a file not dir!")
+		}
+		return nil
+	}
+
+	prompt := promptui.Prompt{
+		Label:    "how many second to delete my data:",
+		Validate: validate,
+	}
+	result, err := prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return
+	}
+	chat.SendFile(result)
 
 }
 
