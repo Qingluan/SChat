@@ -19,9 +19,11 @@ var (
 )
 
 //export InitChatRoom
-func InitChatRoom(loginInof *C.char) {
+func InitChatRoom(loginInof *C.char, home *C.char) {
 	sshstr := C.GoString(loginInof)
-	chat, err := controller.NewChatRoom(sshstr)
+	shome := C.GoString(home)
+
+	chat, err := controller.NewChatRoom(sshstr, shome)
 	if err != nil {
 		log.Fatal(err)
 	}

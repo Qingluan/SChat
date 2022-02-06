@@ -18,9 +18,9 @@ main(const int argc, char*argv[]){
         // exit(0);
         // strcpy(defaultMsg, argv[1]);
         
-        InitChatRoom(argv[1]);
+        InitChatRoom(argv[1],".");
     }else{
-        InitChatRoom(defaultMsg);
+        InitChatRoom(defaultMsg,".");
     }
     OnMessage(callback);
     Users * users = ListUsers();
