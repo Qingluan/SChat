@@ -11,7 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"Chat/controller"
+	// "Chat/controller"
+	"github.com/Qingluan/SChat/controller"
 
 	"github.com/c-bata/go-prompt"
 	"github.com/fatih/color"

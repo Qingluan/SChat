@@ -1,4 +1,4 @@
-module Chat
+module github.com/Qingluan/SChat
 
 go 1.16
 

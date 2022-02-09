@@ -7,10 +7,11 @@ package main
 */
 import "C"
 import (
-	"Chat/controller"
 	"fmt"
 	"log"
 	"sync"
+
+	"github.com/Qingluan/SChat/controller"
 )
 
 var (

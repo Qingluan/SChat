@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"Chat/controller"
+	"github.com/Qingluan/SChat/controller"
 
 	"github.com/fatih/color"
 )
