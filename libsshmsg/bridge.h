@@ -7,6 +7,12 @@
 #define MSG_GROUP 1
 #define MSG_NORMAL 0
 
+typedef struct LoginUser{
+	char * sshinfo;
+	char * home ;
+	char * loginPwd;
+}LoginUser;
+
 typedef struct Cmsg{
 	BOOL Crypted;
 	int Tp;
@@ -58,7 +64,7 @@ bridge_call(Call cb,char* str)
 
 static
 Cmsg*
-create_cmsg(char *group,char * msg, char * from ,char *to, char * date, int crypted, int tp){
+create_cmsg(char *group,char * msg, char * from ,char *tomsg, char * date, int crypted, int tp){
 	Cmsg* cmsg = (Cmsg *) calloc(1,sizeof(Cmsg));
 	cmsg->Date = date;
 	cmsg->Data = msg;
@@ -66,7 +72,7 @@ create_cmsg(char *group,char * msg, char * from ,char *to, char * date, int cryp
 	cmsg->Crypted = crypted;
 	cmsg->Tp = tp;
 	cmsg->Group = group;
-	cmsg->To = to;
+	cmsg->To = tomsg;
 	
 	return cmsg;
 }

@@ -13,21 +13,25 @@ int
 main(const int argc, char*argv[]){
     printf("arg: %d \n",argc);
     char * defaultMsg = "linux://115.236.8.148:50022/docker-hub:Dark@2hub";
+    BOOL initOK;
     if (argc > 1){
         printf("argv : %s\n", argv[1]);
         // exit(0);
         // strcpy(defaultMsg, argv[1]);
         
-        InitChatRoom(argv[1],"/home/dr");
+        initOK = InitChatRoom(argv[1],"/home/dr","");
     }else{
-        InitChatRoom(defaultMsg,"/home/dr");
+        initOK = InitChatRoom(defaultMsg,"/home/dr","");
+    }
+    if (!initOK){
+        return 0;
     }
     OnMessage(callback);
     Users * users = ListUsers();
     int i =0;
     // users->num
     for(i=0;i < users->num;i++){
-        printf("[%d/%d] name: %s\n",i,users->num,(User *)(users->users +i)->Name);
+        printf("[%d/%d] name: %s\n",i,users->num,(users->users +i)->Name);
     }
     printf("users num: %d\nUser no.3's info : %s\n", users->num,UserActive(&users->users[2]));
     if (UserTalkTo("lin3")){

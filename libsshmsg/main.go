@@ -1,8 +1,8 @@
 package main
 
 /*
+#cgo LDFLAGS: -framework CoreFoundation -framework Security
 #cgo CFLAGS: -g -Wall -Iinclude
-#cgo LDFLAGS: -Wl,--allow-multiple-definition
 #include "bridge.h"
 */
 import "C"
@@ -20,20 +20,22 @@ var (
 )
 
 //export InitChatRoom
-func InitChatRoom(loginInof *C.char, home *C.char) {
-	sshstr := C.GoString(loginInof)
+func InitChatRoom(sshinfo *C.char, home *C.char, loginPwd *C.char) C.BOOL {
+	sshstr := C.GoString(sshinfo)
 	shome := C.GoString(home)
+	loginpwd := C.GoString(loginPwd)
 
-	chat, err := controller.NewChatRoom(sshstr, shome)
+	chat, err := controller.NewChatRoom(sshstr, shome, loginpwd)
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = chat.Login()
-	if err != nil {
-		log.Fatal(err)
+	if !chat.Login(loginpwd) {
+
+		return C.FALSE
 	}
 	GlobalChat = chat
 	fmt.Println("Init Ok")
+	return C.TRUE
 }
 
 //export ListUsers
@@ -76,7 +78,7 @@ func OnMessage(call C.MsgCallback) {
 			// 	From:    C.CString(msg.From),
 			// 	Crypted: i,
 			// }
-			cmsg := C.create_cmsg(C.CString(msg.Group), C.CString(msg.Data), C.CString(msg.From), C.CString(msg.Date), C.BOOL(i), C.int(msg.Tp))
+			cmsg := C.create_cmsg(C.CString(msg.Group), C.CString(msg.Data), C.CString(msg.From), C.CString(msg.To), C.CString(msg.Date), C.BOOL(i), C.int(msg.Tp))
 			C.set_on_message(call, cmsg)
 		})
 	}
