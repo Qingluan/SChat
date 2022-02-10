@@ -569,7 +569,7 @@ func (vps *Vps) IfAlive() (out bool) {
 		if err != nil {
 			return err
 		}
-		if !time.Now().After(t.Add(10 * time.Second)) {
+		if !time.Now().After(t.Add(60 * time.Second)) {
 			out = true
 		}
 		return nil
