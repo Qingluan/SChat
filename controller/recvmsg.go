@@ -14,7 +14,7 @@ import (
 
 func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 
-	msgpath := Join(vps.myhome, "message.txt")
+	msgpath := Join(vps.myhome, MSG_FILE)
 
 	dealSpecialMessage := false
 	vps.WithSftpRead(msgpath, os.O_RDONLY|os.O_CREATE, func(fp io.ReadCloser) error {
@@ -60,8 +60,10 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 				} else if strings.HasPrefix(onemsg.From, "${group-key}:") {
 					reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${group-key}:", 2)[1])
 					vps.state |= TALKER_I_HAVE
-					fmt.Println("i got group key :", onemsg.Data, "from", reqName)
-					go SetGroupKey(onemsg.Group, onemsg.Data)
+					gname := vps.GetGroupName(onemsg.Group)
+					fmt.Println("i got group key :", onemsg.Data, "from", reqName, "in group:", gname)
+
+					go SetGroupKey(gname, onemsg.Data)
 					dealSpecialMessage = true
 				}
 			} else {
@@ -74,7 +76,7 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 		return err
 	})
 	if len(msgs) > 0 || dealSpecialMessage {
-		msgpath = Join(vps.myhome, "message.history.txt")
+		msgpath = Join(vps.myhome, MSG_HISTORY)
 		err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_CREATE|os.O_APPEND, func(fp io.WriteCloser) error {
 			msg_string := ""
 			for _, m := range msgs {
@@ -88,7 +90,7 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 			return err
 		})
 		if err == nil {
-			err = vps.sftsess.Remove(Join(vps.myhome, "message.txt"))
+			err = vps.sftsess.Remove(Join(vps.myhome, MSG_FILE))
 		} else {
 			log.Println("overmessge history err:", err)
 		}
@@ -105,7 +107,7 @@ func (vps *Vps) RecvGroupMsg() (msgs []*Message) {
 		go func(gname string, wait *sync.WaitGroup) {
 			defer wait.Done()
 			dealSpecialMessage := false
-			msgpath := Join(ROOT, gname+GROUP_TAIL, "message.txt")
+			msgpath := Join(ROOT, vps.GetGroupVpsName(gname), MSG_FILE)
 
 			tmpsmsgs := []*Message{}
 			err := vps.WithSftpRead(msgpath, os.O_RDONLY|os.O_CREATE, func(fp io.ReadCloser) error {
@@ -152,7 +154,7 @@ func (vps *Vps) RecvGroupMsg() (msgs []*Message) {
 				// log.Println("recv gmsg:"+gname, "err:", err)
 			}
 			if len(tmpsmsgs) > 0 || dealSpecialMessage {
-				msgpath = Join(ROOT, gname+GROUP_TAIL, "message.txt")
+				msgpath = Join(ROOT, vps.GetGroupVpsName(gname), MSG_FILE)
 				err := vps.WithSftpWrite(msgpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, func(fp io.WriteCloser) error {
 					msg_string := ""
 					for _, m := range tmpsmsgs {
@@ -172,7 +174,7 @@ func (vps *Vps) RecvGroupMsg() (msgs []*Message) {
 					return err
 				})
 				if err == nil {
-					// 	// vps.sftsess.Remove(Join(ROOT, gname+GROUP_TAIL, "message.txt"))
+					// 	// vps.sftsess.Remove(Join(ROOT, gname+GROUP_TAIL, MSG_FILE))
 					// 	// if err != nil {
 					// 	// 	log.Println("remove old group msg err:", err)
 					// 	// }

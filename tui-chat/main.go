@@ -9,7 +9,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	// "Chat/controller"
 	"github.com/Qingluan/SChat/controller"
@@ -52,12 +51,14 @@ func main() {
 	name := ""
 	Pass := ""
 	Home := ""
+	Password := ""
 	// R := false
 	flag.StringVar(&sendToName, "s", "", "set name")
 	flag.StringVar(&name, "u", "a", "set user name")
 	flag.StringVar(&ssh, "H", "://115.236.8.148:50022/docker-hub", "set page")
 	flag.StringVar(&Pass, "P", "", "set password ")
 	flag.StringVar(&Home, "home", "", "set password ")
+	flag.StringVar(&Password, "password", "", "login password ")
 
 	flag.Parse()
 	if Pass != "" {
@@ -72,16 +73,17 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = chat.Login()
+	if !chat.Login(Password) {
+		return
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
 	chat.SetWacher(func(msg *controller.Message) {
-		line := color.New(color.FgGreen).Sprintf("[%s] >", msg.From)
-		line += color.New(color.FgYellow).Sprintf(" -- %s\n ", msg.Date)
-		line += color.New(color.FgHiWhite, color.Bold).Sprintln(msg.Data)
+		line := color.New(color.FgGreen).Sprintf("\n%s|[%s]%s>\n  %s", msg.Date, msg.From, msg.Group, color.New(color.FgHiWhite, color.Bold).Sprintln(msg.Data))
+		// line += color.New(color.FgYellow).Sprintf(" -- %s\n ", )
 		// fmt.Print(line, color.New(color.FgHiCyan).Sprint("\nsend msg or cmd $ls/$ >"))
-		fmt.Print(line)
+		fmt.Println(line)
 	})
 	// cmd := ""
 	// msg := ""
@@ -110,10 +112,10 @@ MAINLOOP:
 			SelectContact(chat)
 		case "/ls":
 			for _, u := range chat.Contact() {
-				if strings.HasSuffix(u.Name, controller.GROUP_TAIL) {
-					fmt.Println("[Group] ", u.Name)
+				if name, ok := chat.IsGroupName(u.Name); ok {
+					fmt.Println("[Group] ", name)
 				} else {
-					fmt.Println(u.Name)
+					fmt.Println(u.Name, "("+u.Acivte()+")")
 				}
 
 			}
@@ -129,7 +131,16 @@ MAINLOOP:
 		case "/clear":
 			SetDelayClear(chat)
 			break MAINLOOP
-
+		case "/saveKey":
+			key := Input("login passwd:>")
+			if chat.SaveKeyToServer(key) {
+				log.Println("save to server success!")
+			}
+		case "/restore":
+			key := Input("login passwd:>")
+			if chat.RestoreKeyFromServer(key) {
+				log.Println("restore key success!")
+			}
 		case "/quit":
 			os.Exit(0)
 
@@ -271,7 +282,7 @@ func SelectContact(chat *controller.ChatRoom) *controller.User {
 	users := chat.Contact()
 	userstr := []string{}
 	for _, u := range users {
-		userstr = append(userstr, u.Name+"|"+time.Since(u.Last()).String())
+		userstr = append(userstr, u.Name+" | "+u.Acivte())
 	}
 	prompt := promptui.Select{
 		Label: "select user to talk",

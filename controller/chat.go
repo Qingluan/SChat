@@ -11,13 +11,14 @@ import (
 )
 
 type ChatRoom struct {
-	IP       string
-	nowMsgTo string
-	MyName   string
-	vps      *Vps
-	stream   *Stream
-	recvMsg  chan *Message
-	watch    func(msg *Message)
+	IP         string
+	nowMsgTo   string
+	MyName     string
+	vps        *Vps
+	stream     *Stream
+	baseStream *Stream
+	recvMsg    chan *Message
+	watch      func(msg *Message)
 }
 
 /*NewChatRoom
@@ -31,23 +32,26 @@ func NewChatRoom(sshstr string, HomePath ...string) (chat *ChatRoom, err error) 
 			SetHome(HomePath[0])
 		}
 	}
-	chat.vps = Parse(sshstr)
-	SecurityCheckName(chat.vps.name)
-	chat.IP = chat.vps.IP
-	chat.stream, err = NewStreamWithAuthor(chat.vps.name, false)
-	chat.recvMsg = make(chan *Message, 1024)
-	chat.MyName = chat.vps.name
+	err = chat.Init(sshstr)
+	if err != nil {
+		return
+	}
 	go func() {
-		chat.vps.OnMessage(func(group, from, msg string, crypted bool, tp int, date time.Time) {
+		chat.vps.OnMessage(func(group, from, to, msg string, crypted bool, tp int, date time.Time) {
 			var m *Message
 			if crypted {
 				// log.Println("key:", chat.stream.Key)
 				// err := chat.stream.LoadCipherByAuthor(from)
 				grouped := false
-				author := from
+				author := chat.vps.D(from)
+				gname := group
 				if tp == MSG_TP_GROUP {
 					grouped = true
-					author = group
+					author = chat.vps.GetGroupName(group)
+				}
+
+				if gname != "" {
+					gname = chat.vps.GetGroupName(gname)
 				}
 				stream, err := NewStreamWithAuthor(author, grouped)
 				if err != nil {
@@ -68,8 +72,9 @@ func NewChatRoom(sshstr string, HomePath ...string) (chat *ChatRoom, err error) 
 				m = &Message{
 					Date:  date.Format(TIME_TMP),
 					Data:  string(realMsg),
-					From:  from,
-					Group: group,
+					From:  chat.vps.D(from),
+					Group: gname,
+					To:    chat.vps.D(to),
 					Tp:    tp,
 				}
 
@@ -77,9 +82,10 @@ func NewChatRoom(sshstr string, HomePath ...string) (chat *ChatRoom, err error) 
 				m = &Message{
 					Date:  date.Format(TIME_TMP),
 					Data:  string(msg),
-					From:  from,
+					From:  chat.vps.D(from),
 					Tp:    tp,
-					Group: group,
+					To:    chat.vps.D(to),
+					Group: chat.vps.GetGroupName(group),
 				}
 			}
 			if chat.watch != nil {
@@ -107,12 +113,15 @@ func (chat *ChatRoom) Write(msg string) {
 func (chat *ChatRoom) WriteGroup(gname, msg string) {
 	// fmt.Println("run write")
 	key := GetGroupKey(gname)
+	// gname = chat.vps.GetGroupVpsName(gname)
 	if key != "" {
+		// fmt.Println("key:", key)
 		steam, err := NewStreamWithAuthor(gname, true)
 		if err != nil {
 			log.Println("load gkey err:", err)
 			return
 		}
+		// fmt.Println("key 2:", key, gname)
 		e := steam.En([]byte(msg))
 		estr := base64.RawStdEncoding.EncodeToString(e)
 		err = chat.vps.SendGroupMsg(gname, estr, true)
@@ -122,21 +131,6 @@ func (chat *ChatRoom) WriteGroup(gname, msg string) {
 	} else {
 		fmt.Println("can not found grou key:", gname)
 	}
-}
-
-func (chat *ChatRoom) CreateGroup(name string) {
-	chat.vps.CreateGroup(name)
-}
-func (chat *ChatRoom) RemoveGroup(name string) {
-	chat.vps.RemoveGroup(name)
-}
-
-func (chat *ChatRoom) JoinGroup(name string) {
-	chat.vps.JoinGroup(name)
-}
-
-func (chat *ChatRoom) Permitt(gname, uname string) {
-	chat.vps.AllowJoinGroup(gname, uname)
 }
 
 func (chat *ChatRoom) CloseWithClear(t int) {
@@ -152,8 +146,26 @@ func (chat *ChatRoom) Read() *Message {
 	return msg
 }
 
-func (chat *ChatRoom) Login() error {
-	return chat.vps.Init()
+func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
+	if restoresKey != nil && restoresKey[0] != "" {
+		chat.RestoreKeyFromServer(restoresKey[0])
+	}
+	var err error
+	chat.stream, err = NewStreamWithAuthor(chat.vps.name, false)
+	if err != nil {
+		log.Println("chat logined failed: ", err)
+		return
+	}
+	if err := chat.vps.Init(); err != nil {
+		log.Println("chat logined failed: ", err)
+		return
+	} else {
+		if restoresKey != nil && restoresKey[0] != "" {
+			fmt.Println("share key in remote:", chat.SaveKeyToServer(restoresKey[0]))
+		}
+		return true
+	}
+
 }
 
 func (chat *ChatRoom) SetWacher(call func(msg *Message)) {
@@ -166,6 +178,14 @@ func (chat *ChatRoom) Contact() (users []*User) {
 		log.Fatal("get contact err :", err)
 	}
 	return users
+}
+
+func (chat *ChatRoom) SaveKeyToServer(key string) bool {
+	return chat.vps.SaveKeyToServer(key)
+}
+
+func (chat *ChatRoom) RestoreKeyFromServer(key string) bool {
+	return chat.vps.TryRestoreKey(key)
 }
 
 func (chat *ChatRoom) History() {

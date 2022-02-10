@@ -270,6 +270,32 @@ func (stream *Stream) En(plain []byte) (cipher []byte) {
 	return cipherText
 }
 
+func (steam *Stream) Flow(raw []byte) (out []byte) {
+	key := steam.Key
+	L := len(key)
+	out = make([]byte, len(raw))
+	for n, c := range raw {
+		kc := key[n%L]
+		ec := c ^ kc
+		out[n] = ec
+	}
+	return
+
+}
+
+func (stream *Stream) FlowEn(raw string) (out string) {
+	outraw := stream.Flow([]byte(raw))
+	return strings.ReplaceAll(strings.ReplaceAll(base64.StdEncoding.EncodeToString(outraw), "=", "_"), "+", "-")
+}
+
+func (stream *Stream) FlowDe(raw64 string) (out string) {
+	// outraw := stream.En([]byte(raw))
+	raw64 = strings.ReplaceAll(raw64, "_", "=")
+	raw64 = strings.ReplaceAll(raw64, "-", "+")
+	o, _ := base64.StdEncoding.DecodeString(raw64)
+	return string(stream.Flow(o))
+}
+
 func (stream *Stream) De(cipher []byte) (plain []byte) {
 	// nonce := make([]byte, (*stream.cipher).NonceSize())
 	// populates our nonce with a cryptographically secure
@@ -690,7 +716,7 @@ func GetGroupKey(name string) string {
 	}
 	key, err := ioutil.ReadFile(filepath.Join(GroupKeysHome, n))
 	if err != nil {
-		log.Println("load keys err:", err)
+		log.Println("load group keys err:", err, name)
 		return ""
 	}
 	k := strings.TrimSpace(string(key))

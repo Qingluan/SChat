@@ -44,9 +44,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = chat.Login()
-	if err != nil {
-		log.Fatal(err)
+	if !chat.Login() {
+		return
 	}
 
 	chat.SetWacher(func(msg *controller.Message) {

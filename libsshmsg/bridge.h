@@ -13,6 +13,7 @@ typedef struct Cmsg{
 	char* Group;
 	char* Date;
 	char* From;
+	char *To;
 	char* Data;
 }Cmsg;
 
@@ -57,7 +58,7 @@ bridge_call(Call cb,char* str)
 
 static
 Cmsg*
-create_cmsg(char *group,char * msg, char * from , char * date, int crypted, int tp){
+create_cmsg(char *group,char * msg, char * from ,char *to, char * date, int crypted, int tp){
 	Cmsg* cmsg = (Cmsg *) calloc(1,sizeof(Cmsg));
 	cmsg->Date = date;
 	cmsg->Data = msg;
@@ -65,6 +66,7 @@ create_cmsg(char *group,char * msg, char * from , char * date, int crypted, int 
 	cmsg->Crypted = crypted;
 	cmsg->Tp = tp;
 	cmsg->Group = group;
+	cmsg->To = to;
 	
 	return cmsg;
 }
