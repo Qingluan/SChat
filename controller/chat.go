@@ -180,6 +180,10 @@ func (chat *ChatRoom) Contact() (users []*User) {
 	return users
 }
 
+func (chat *ChatRoom) GetTalker() string {
+	return chat.vps.GetRawMsgTo()
+}
+
 func (chat *ChatRoom) SaveKeyToServer(key string) bool {
 	return chat.vps.SaveKeyToServer(key)
 }
