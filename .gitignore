@@ -7,3 +7,4 @@ examples/test
 */libschat
 libsshmsg/libschat.h
 */test
+*/.DS_Store
