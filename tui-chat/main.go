@@ -13,6 +13,7 @@ import (
 	// "Chat/controller"
 	"github.com/Qingluan/SChat/controller"
 
+	"github.com/atotto/clipboard"
 	"github.com/c-bata/go-prompt"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
@@ -80,6 +81,11 @@ func main() {
 		log.Fatal(err)
 	}
 	chat.SetWacher(func(msg *controller.Message) {
+		if strings.HasPrefix(msg.Data, controller.MSG_CLIP_PREFIX) {
+			OnClipBroad(msg.From, msg.Data, chat)
+			fmt.Println(controller.MSG_CLIP_PREFIX)
+			return
+		}
 		line := color.New(color.FgGreen).Sprintf("\n%s|[%s]%s>\n  %s", msg.Date, msg.From, msg.Group, color.New(color.FgHiWhite, color.Bold).Sprintln(msg.Data))
 		// line += color.New(color.FgYellow).Sprintf(" -- %s\n ", )
 		// fmt.Print(line, color.New(color.FgHiCyan).Sprint("\nsend msg or cmd $ls/$ >"))
@@ -91,19 +97,20 @@ MAINLOOP:
 	for {
 		// 	fmt.Print(color.New(color.FgHiCyan).Sprintf("(%s)>", user))
 		out := Repl(promptlabel, Datas{
-			"/":         "to menu",
-			"/user":     "show users to talk",
-			"/hist":     "show history",
-			"/file":     "show cloud files",
-			"/down":     "downlaod file in clound",
-			"/upload":   "upload file to other user",
-			"/clear":    "set delay time to clear my data in remote",
-			"/quit":     "quit ssh msger",
-			"/newgroup": "create new group",
-			"/allow":    "allow who join which group",
-			"/join":     "join which group",
-			"/ls":       "show contact and groups",
-			"/del":      "remove group",
+			"/":          "to menu",
+			"/user":      "show users to talk",
+			"/hist":      "show history",
+			"/file":      "show cloud files",
+			"/down":      "downlaod file in clound",
+			"/upload":    "upload file to other user",
+			"/clear":     "set delay time to clear my data in remote",
+			"/quit":      "quit ssh msger",
+			"/newgroup":  "create new group",
+			"/allow":     "allow who join which group",
+			"/join":      "join which group",
+			"/ls":        "show contact and groups",
+			"/del":       "remove group",
+			"/shareClip": "share clipbraod",
 		})
 		switch out {
 		case "/":
@@ -387,5 +394,20 @@ func DownFile(chat *controller.ChatRoom) {
 	f := SelectList("Download file ctrl -c to cancel", fs)
 	if f != "" {
 		chat.GetFile(f)
+	}
+}
+
+func ShareClipBroad(chat *controller.ChatRoom) {
+	buf, err := clipboard.ReadAll()
+	if err != nil {
+		log.Println("read clipbroad err:", err)
+		return
+	}
+	chat.Write(controller.MSG_CLIP_PREFIX + buf)
+}
+
+func OnClipBroad(from, buf string, chat *controller.ChatRoom) {
+	if chat.GetTalker() == from {
+		clipboard.WriteAll(buf)
 	}
 }

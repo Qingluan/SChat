@@ -27,5 +27,6 @@ var (
 	GROUP_TAIL      = "_GroUP"
 	TMP             = "/tmp"
 
-	MsgIsNULL = fmt.Errorf("msg is null!!")
+	MSG_CLIP_PREFIX = "[clipbroad]:"
+	MsgIsNULL       = fmt.Errorf("msg is null!!")
 )
