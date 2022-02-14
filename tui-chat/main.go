@@ -408,6 +408,8 @@ func ShareClipBroad(chat *controller.ChatRoom) {
 
 func OnClipBroad(from, buf string, chat *controller.ChatRoom) {
 	if chat.GetTalker() == from {
+
+		buf = strings.TrimPrefix(buf, controller.MSG_CLIP_PREFIX)
 		clipboard.WriteAll(buf)
 	}
 }
