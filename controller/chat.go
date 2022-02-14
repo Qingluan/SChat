@@ -38,55 +38,10 @@ func NewChatRoom(sshstr string, HomePath ...string) (chat *ChatRoom, err error) 
 	}
 	go func() {
 		chat.vps.OnMessage(func(group, from, to, msg string, crypted bool, tp int, date time.Time) {
-			var m *Message
-			if crypted {
-				// log.Println("key:", chat.stream.Key)
-				// err := chat.stream.LoadCipherByAuthor(from)
-				grouped := false
-				author := chat.vps.D(from)
-				gname := group
-				if tp == MSG_TP_GROUP {
-					grouped = true
-					author = chat.vps.GetGroupName(group)
-				}
-
-				if gname != "" {
-					gname = chat.vps.GetGroupName(gname)
-				}
-				stream, err := NewStreamWithAuthor(author, grouped)
-				if err != nil {
-					log.Println("chat recv msg err: ", err)
-					return
-				}
-				// log.Println("key 2:", chat.stream.Key)
-				cipher, err := base64.RawStdEncoding.DecodeString(msg)
-				if err != nil {
-					log.Println("chat recv msg base64 err: ", err)
-					return
-				}
-				// log.Println("key 3:", chat.stream.Key)
-
-				realMsg := stream.De(cipher)
-				// log.Println("key 4:", chat.stream.Key)
-
-				m = &Message{
-					Date:  date.Format(TIME_TMP),
-					Data:  string(realMsg),
-					From:  chat.vps.D(from),
-					Group: gname,
-					To:    chat.vps.D(to),
-					Tp:    tp,
-				}
-
-			} else {
-				m = &Message{
-					Date:  date.Format(TIME_TMP),
-					Data:  string(msg),
-					From:  chat.vps.D(from),
-					Tp:    tp,
-					To:    chat.vps.D(to),
-					Group: chat.vps.GetGroupName(group),
-				}
+			m, err := chat.ReadEncryptedMessage(msg, from, to, group, date, tp, crypted)
+			if err != nil {
+				log.Println("[Read encrypted err]:", err)
+				return
 			}
 			if chat.watch != nil {
 				go chat.watch(m)
@@ -95,6 +50,59 @@ func NewChatRoom(sshstr string, HomePath ...string) (chat *ChatRoom, err error) 
 		})
 	}()
 	return chat, err
+}
+
+func (chat *ChatRoom) ReadEncryptedMessage(msg, from, to, group string, date time.Time, tp int, crypted bool) (m *Message, err error) {
+	if crypted {
+		// log.Println("key:", chat.stream.Key)
+		// err := chat.stream.LoadCipherByAuthor(from)
+		grouped := false
+		author := chat.vps.D(from)
+		gname := group
+		if tp == MSG_TP_GROUP {
+			grouped = true
+			author = chat.vps.GetGroupName(group)
+		}
+
+		if gname != "" {
+			gname = chat.vps.GetGroupName(gname)
+		}
+		stream, err := NewStreamWithAuthor(author, grouped)
+		if err != nil {
+			log.Println("chat recv msg err: ", err)
+			return nil, err
+		}
+		// log.Println("key 2:", chat.stream.Key)
+		cipher, err := base64.RawStdEncoding.DecodeString(msg)
+		if err != nil {
+			log.Println("chat recv msg base64 err: ", err)
+			return nil, err
+		}
+		// log.Println("key 3:", chat.stream.Key)
+
+		realMsg := stream.De(cipher)
+		// log.Println("key 4:", chat.stream.Key)
+
+		m = &Message{
+			Date:  date.Format(TIME_TMP),
+			Data:  string(realMsg),
+			From:  chat.vps.D(from),
+			Group: gname,
+			To:    chat.vps.D(to),
+			Tp:    tp,
+		}
+
+	} else {
+		m = &Message{
+			Date:  date.Format(TIME_TMP),
+			Data:  string(msg),
+			From:  chat.vps.D(from),
+			Tp:    tp,
+			To:    chat.vps.D(to),
+			Group: chat.vps.GetGroupName(group),
+		}
+	}
+	return m, nil
 }
 
 func (chat *ChatRoom) TalkTo(name string) {
@@ -190,62 +198,6 @@ func (chat *ChatRoom) SaveKeyToServer(key string) bool {
 
 func (chat *ChatRoom) RestoreKeyFromServer(key string) bool {
 	return chat.vps.TryRestoreKey(key)
-}
-
-func (chat *ChatRoom) History() {
-	msgs, err := chat.vps.History()
-	if err != nil {
-		log.Println("read history :", err)
-		return
-	}
-	for _, msg := range msgs {
-		if msg.Crypted {
-			// log.Println("key:", chat.stream.Key)
-			// err := chat.stream.LoadCipherByAuthor(from)
-			goruped := false
-			if msg.Tp == MSG_TP_GROUP {
-				goruped = true
-			}
-			stream, err := NewStreamWithAuthor(msg.From, goruped)
-			if err != nil {
-				log.Println("chat recv msg err: ", err)
-				return
-			}
-			// log.Println("key 2:", chat.stream.Key)
-			cipher, err := base64.RawStdEncoding.DecodeString(msg.Data)
-			if err != nil {
-				log.Println("chat recv msg base64 err: ", err)
-				return
-			}
-			// log.Println("key 3:", chat.stream.Key)
-
-			realMsg := stream.De(cipher)
-			// log.Println("key 4:", chat.stream.Key)
-
-			m := &Message{
-				Date: msg.Date,
-				Data: "[history] " + string(realMsg),
-				From: msg.From,
-			}
-
-			if chat.watch != nil {
-				go chat.watch(m)
-			}
-			chat.recvMsg <- m
-
-		} else {
-			m := &Message{
-				Date: msg.Date,
-				Data: "[history] " + msg.Data,
-				From: msg.From,
-			}
-
-			if chat.watch != nil {
-				go chat.watch(m)
-			}
-			chat.recvMsg <- m
-		}
-	}
 }
 
 func (chat *ChatRoom) SendFile(path string, groupName ...string) (err error) {
@@ -350,4 +302,68 @@ func (chat *ChatRoom) CloudFiles(groupName ...string) (fs []string) {
 		}
 	}
 	return chat.vps.CloudFiles(groupName...)
+}
+
+func (chat *ChatRoom) History() {
+	msgs, err := chat.vps.History()
+	if err != nil {
+		log.Println("read history :", err)
+		return
+	}
+	for _, msg := range msgs {
+		date, _ := time.Parse(TIME_TMP, msg.Date)
+
+		m, err := chat.ReadEncryptedMessage(msg.Data, msg.From, msg.To, msg.Group, date, msg.Tp, msg.Crypted)
+		if err != nil {
+			log.Println("[history read encrypted msg err]:", err)
+			continue
+		}
+		chat.recvMsg <- m
+		// if msg.Crypted {
+		// 	// log.Println("key:", chat.stream.Key)
+		// 	// err := chat.stream.LoadCipherByAuthor(from)
+		// 	goruped := false
+		// 	if msg.Tp == MSG_TP_GROUP {
+		// 		goruped = true
+		// 	}
+		// 	stream, err := NewStreamWithAuthor(msg.From, goruped)
+		// 	if err != nil {
+		// 		log.Println("chat recv msg err: ", err)
+		// 		return
+		// 	}
+		// 	// log.Println("key 2:", chat.stream.Key)
+		// 	cipher, err := base64.RawStdEncoding.DecodeString(msg.Data)
+		// 	if err != nil {
+		// 		log.Println("chat recv msg base64 err: ", err)
+		// 		return
+		// 	}
+		// 	// log.Println("key 3:", chat.stream.Key)
+
+		// 	realMsg := stream.De(cipher)
+		// 	// log.Println("key 4:", chat.stream.Key)
+
+		// 	m := &Message{
+		// 		Date: msg.Date,
+		// 		Data: "[history] " + string(realMsg),
+		// 		From: msg.From,
+		// 	}
+
+		// 	if chat.watch != nil {
+		// 		go chat.watch(m)
+		// 	}
+		// 	chat.recvMsg <- m
+
+		// } else {
+		// 	m := &Message{
+		// 		Date: msg.Date,
+		// 		Data: "[history] " + msg.Data,
+		// 		From: msg.From,
+		// 	}
+
+		// 	if chat.watch != nil {
+		// 		go chat.watch(m)
+		// 	}
+		// 	chat.recvMsg <- m
+		// }
+	}
 }
