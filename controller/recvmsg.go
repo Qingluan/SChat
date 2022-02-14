@@ -39,7 +39,7 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 			}
 			err = json.Unmarshal([]byte(testmsg), onemsg)
 			if err != nil {
-				log.Println("msg err :", linebuf, err)
+				log.Println("msg err :", string(linebuf), err)
 				continue
 			}
 

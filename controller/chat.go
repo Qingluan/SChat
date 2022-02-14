@@ -318,6 +318,11 @@ func (chat *ChatRoom) History() {
 			log.Println("[history read encrypted msg err]:", err)
 			continue
 		}
+		// fmt.Println("rec", m)
+		m.Data = fmt.Sprintf("[history]: %s", m.Data)
+		if chat.watch != nil {
+			go chat.watch(m)
+		}
 		chat.recvMsg <- m
 		// if msg.Crypted {
 		// 	// log.Println("key:", chat.stream.Key)

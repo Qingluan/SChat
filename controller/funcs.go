@@ -150,22 +150,55 @@ func (vps *Vps) History() (msgs []*Message, err error) {
 			return nil
 		}
 		for _, linebuf := range bytes.Split(buf, []byte("\n\r")) {
-			onemsg := new(Message)
-			// log.Println("msg :", linebuf)
-			testmsg := strings.TrimSpace(string(linebuf))
-			// log.Println("msg :", testmsg)
-			if testmsg == "" {
-				continue
-			}
-			err = json.Unmarshal([]byte(testmsg), onemsg)
-			if err != nil {
-				log.Println("msg err :", linebuf, err)
-				continue
-			}
-			if strings.HasPrefix(onemsg.From, "${") {
+			if bytes.Contains(linebuf, []byte("}{")) {
+				linebufs := bytes.Split(linebuf, []byte("}{"))
+				for _, onebuf := range linebufs {
+					onemsg := new(Message)
+					// log.Println("msg :", linebuf)
+					testmsg := strings.TrimSpace(string(onebuf))
+					if !strings.HasPrefix(testmsg, "{") {
+						testmsg = "{" + testmsg
+					}
+					if !strings.HasSuffix(testmsg, "}") {
+						testmsg += "}"
+					}
+					// log.Println("msg :", testmsg)
+					if testmsg == "" {
+						continue
+					}
+					err = json.Unmarshal([]byte(testmsg), onemsg)
+					if err != nil {
+						log.Println("low level read msg err :", string(testmsg), err)
+						continue
+					}
+					if strings.HasPrefix(onemsg.From, "${") {
 
+					} else {
+						// fmt.Println(onemsg)
+						msgs = append(msgs, onemsg)
+					}
+				}
 			} else {
-				msgs = append(msgs, onemsg)
+				onemsg := new(Message)
+				// log.Println("msg :", linebuf)
+				testmsg := strings.TrimSpace(string(linebuf))
+				// log.Println("msg :", testmsg)
+				if testmsg == "" {
+					continue
+				}
+				err = json.Unmarshal([]byte(testmsg), onemsg)
+				if err != nil {
+					log.Println("low level msg err :", string(testmsg), err)
+					continue
+				}
+				if strings.HasPrefix(onemsg.From, "${") {
+
+				} else {
+
+					// fmt.Println(onemsg)
+					msgs = append(msgs, onemsg)
+				}
+
 			}
 
 		}
