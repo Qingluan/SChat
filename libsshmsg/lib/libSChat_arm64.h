@@ -84,6 +84,7 @@ extern void ChatHistory();
 extern int SendFile(char* path);
 extern int DownFile(char* name);
 extern TmpFiles* GetFiles();
+extern void ClearMe(int i);
 extern char* UserActive(User* cuser);
 extern GoInt UserTalkTo(char* name);
 extern GoInt WriteMessage(char* msg);

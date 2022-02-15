@@ -127,6 +127,13 @@ func GetFiles() *C.TmpFiles {
 	return cfiles
 }
 
+//export ClearMe
+func ClearMe(i C.int) {
+	if GlobalChat != nil {
+		GlobalChat.CloseWithClear(int(i))
+	}
+}
+
 //export UserActive
 func UserActive(cuser *C.User) *C.char {
 	user := &controller.User{
