@@ -407,6 +407,7 @@ func (vps *Vps) Init() (err error) {
 		return fmt.Errorf("login failed: user already exists but key is err!%s", "")
 	}
 	vps.heartInterval = 1
+	vps.liveInterval = 1200
 	go vps.HeartBeat()
 	go vps.backgroundRecvMsgs()
 	return
@@ -478,7 +479,7 @@ func (vps *Vps) ContactTo(name string) (ip string, err error) {
 
 	go func() {
 		for {
-			time.Sleep(5 * time.Second)
+			time.Sleep(time.Duration(vps.liveInterval) * time.Second)
 			if vps.GetRawMsgTo() != "" {
 				if !vps.IfAlive() {
 					fmt.Println(vps.GetRawMsgTo(), vps.msgtoIP, "offline")
@@ -546,6 +547,9 @@ func (vps *Vps) CloudFiles(groupName ...string) (files []string) {
 
 	vps.WithSftpDir(fsdir, func(fs os.FileInfo) error {
 		if fs.IsDir() {
+			return nil
+		}
+		if fs.Name() == "files" {
 			return nil
 		}
 		files = append(files, fs.Name())

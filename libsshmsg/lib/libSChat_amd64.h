@@ -78,6 +78,12 @@ extern "C" {
 extern int InitChatRoom(char* sshinfo, char* home, char* loginPwd);
 extern Users* ListUsers();
 extern void OnMessage(MsgCallback call);
+extern char* MyName();
+extern char* GetTalker();
+extern void ChatHistory();
+extern int SendFile(char* path);
+extern int DownFile(char* name);
+extern TmpFiles* GetFiles();
 extern char* UserActive(User* cuser);
 extern GoInt UserTalkTo(char* name);
 extern GoInt WriteMessage(char* msg);

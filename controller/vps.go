@@ -41,6 +41,7 @@ type Vps struct {
 	msgto         string
 	msgtoIP       string
 	state         int
+	liveInterval  int
 	hearted       bool
 	heartInterval int
 	session       *ssh.Session

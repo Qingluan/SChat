@@ -84,6 +84,49 @@ func OnMessage(call C.MsgCallback) {
 	}
 }
 
+//export MyName
+func MyName() *C.char {
+	return C.CString(GlobalChat.MyName)
+}
+
+//export GetTalker
+func GetTalker() *C.char {
+	return C.CString(GlobalChat.GetTalker())
+}
+
+//export ChatHistory
+func ChatHistory() {
+	GlobalChat.History()
+}
+
+//export SendFile
+func SendFile(path *C.char) C.int {
+	if err := GlobalChat.SendFile(C.GoString(path)); err != nil {
+		log.Println(err)
+		return 0
+	}
+	return 1
+}
+
+//export DownFile
+func DownFile(name *C.char) C.int {
+	if err := GlobalChat.GetFile(C.GoString(name)); err != nil {
+		log.Println(err)
+		return 0
+	}
+	return 1
+}
+
+//export GetFiles
+func GetFiles() *C.TmpFiles {
+	fs := GlobalChat.CloudFiles()
+	cfiles := C.create_files(C.int(len(fs)))
+	for _, f := range fs {
+		C.tmp_add_file(cfiles, C.CString(f))
+	}
+	return cfiles
+}
+
 //export UserActive
 func UserActive(cuser *C.User) *C.char {
 	user := &controller.User{
