@@ -228,19 +228,24 @@ func ChatCloudFiles() *C.TmpFiles {
 	return cfs
 }
 
-//export GetMyHome
+//export GetMyLocalHome
 func GetMyLocalHome() *C.char {
 	return C.CString(GlobalChat.GetMyLocalHome())
 }
 
-//export ChatGetMyIcon
+//export ChatGetMyIconPath
 func ChatGetMyIconPath() *C.char {
 	return C.CString(GlobalChat.GetMyIconWithPath())
 }
 
 //export ChatGetTalkerIcon
 func ChatGetTalkerIcon() *C.char {
-	return C.CString(GlobalChat.GetTalkerSIconPath())
+	p, err := GlobalChat.GetTalkerSIconPath()
+	if err != nil {
+		log.Println("get talker's icon err :", err)
+		return C.CString("")
+	}
+	return C.CString(p)
 }
 
 //export ChatSetMyIcon
