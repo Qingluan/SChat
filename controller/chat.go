@@ -105,10 +105,14 @@ func (chat *ChatRoom) ReadEncryptedMessage(msg, from, to, group string, date tim
 	return m, nil
 }
 
-func (chat *ChatRoom) TalkTo(name string) {
+func (chat *ChatRoom) TalkTo(name string) (icon string) {
 	chat.vps.ContactTo(name)
 	chat.nowMsgTo = name
-
+	icon, err := chat.GetTalkerSIconPath()
+	if err != nil {
+		log.Println("fetch talker's icon err:", err)
+	}
+	return
 }
 
 func (chat *ChatRoom) Write(msg string) {
@@ -191,8 +195,7 @@ func (chat *ChatRoom) SendFile(path string, groupName ...string) (err error) {
 		return
 	}
 	grouped := false
-	author := chat.vps.E(chat.nowMsgTo)
-	print("author:", author)
+	author := chat.nowMsgTo
 	if groupName != nil {
 		grouped = true
 		author = groupName[0]
@@ -203,6 +206,7 @@ func (chat *ChatRoom) SendFile(path string, groupName ...string) (err error) {
 	}
 
 	err = chat.vps.WithSendFile(path, func(networkFile io.Writer, rawFile io.Reader) (err error) {
+		fmt.Println("load kye by :", author, "grouped:", grouped)
 
 		stream, err := NewStreamWithAuthor(author, grouped)
 		if err != nil {
@@ -217,6 +221,7 @@ func (chat *ChatRoom) SendFile(path string, groupName ...string) (err error) {
 		return nil
 	}, groupName...)
 	if err != nil {
+		log.Println("send file err:", err)
 		return err
 	}
 	log.Println("encrypted upload " + name + " ok")
@@ -235,7 +240,8 @@ func (chat *ChatRoom) GetFile(name string, groupName ...string) (err error) {
 	dirs := "Downloads"
 
 	grouped := false
-	author := chat.vps.myenname
+	author := chat.MyName
+	fmt.Println("author:", author)
 
 	if groupName != nil {
 		grouped = true
@@ -248,6 +254,7 @@ func (chat *ChatRoom) GetFile(name string, groupName ...string) (err error) {
 
 	chat.vps.DownloadCloud(name, func(networkFile io.Reader) (err error) {
 		stream, err := NewStreamWithAuthor(author, grouped)
+		fmt.Println("load kye by :", author, "grouped:", grouped)
 		if err != nil {
 			log.Println("load straem err:", err)
 			return err

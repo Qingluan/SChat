@@ -112,6 +112,7 @@ MAINLOOP:
 			"/del":       "remove group",
 			"/shareClip": "share clipbraod",
 			"/my-icon":   "get my icon path",
+			"/destroy":   "destroy local keys ",
 		})
 		switch out {
 		case "/":
@@ -129,7 +130,7 @@ MAINLOOP:
 			}
 		case "/my-icon":
 			fmt.Println(chat.GetMyIconWithPath())
-		case "destroy":
+		case "/destroy":
 			chat.ClearLocalCache()
 			fmt.Println("destroy local keys ")
 			os.Exit(0)

@@ -94,6 +94,25 @@ func (vps *Vps) SendMsg(msg string, encrypted ...bool) (err error) {
 
 }
 
+func (vps *Vps) IfLogined() (logined bool) {
+	last_activate := Join(vps.myhome, MSG_HEART)
+	err := vps.WithSftpRead(last_activate, os.O_RDONLY, func(fp io.ReadCloser) error {
+		buf, _ := ioutil.ReadAll(fp)
+		date, err := time.Parse(TIME_TMP, string(buf))
+		if err != nil {
+			return err
+		}
+		if !time.Now().After(date.Add(5 * time.Second)) {
+			logined = true
+		}
+		return nil
+	})
+	if err != nil {
+		return
+	}
+	return
+}
+
 func (vps *Vps) HeartBeat() {
 	if !vps.hearted {
 		for {
@@ -219,6 +238,7 @@ func (vps *Vps) GetRemoteKeyPath(key string) string {
 
 func (vps *Vps) TimerClear(delay int, groupname ...string) (err error) {
 	name := vps.name
+	println("clear name:", name)
 	name = vps.GetVpsName()
 	if groupname != nil {
 
@@ -231,15 +251,18 @@ func (vps *Vps) TimerClear(delay int, groupname ...string) (err error) {
 	t := hex.EncodeToString(buf)
 	p := Join("/tmp", t+".sh")
 	keyFile := ""
+	fmt.Println("loginpwd:", vps.loginpwd)
 	if groupname == nil && vps.loginpwd != "" {
 		keyFile = "rm " + Join("/tmp", vps.GetRemoteKeyPath(vps.loginpwd)) + ";"
 	}
+	bash := fmt.Sprintf(`
+	#!/bin/bash
+	cd %s && rm -rf  %s ;
+	%s
+	rm $0; `, ROOT, name, keyFile)
+	fmt.Println("execute : \n\t:", bash)
 	vps.WithSftpWrite(p, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, func(fp io.WriteCloser) error {
-		fp.Write([]byte(fmt.Sprintf(`
-#!/bin/bash
-cd %s && rm -rf  %s ;
-%s
-rm $0; `, ROOT, name, keyFile)))
+		fp.Write([]byte(bash))
 		return nil
 	})
 	vps.WithSftp(func(client *sftp.Client) error {
@@ -307,6 +330,11 @@ func (vps *Vps) backgroundRecvMsgs() {
 BACKEND:
 	for {
 		// fmt.Println("do some")
+		if vps.logout {
+			fmt.Println("kicked by another logined !!!")
+			os.Exit(0)
+			return
+		}
 		select {
 		case <-tick.C:
 

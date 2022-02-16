@@ -3,7 +3,10 @@ package controller
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log"
+	"os"
+	"time"
 )
 
 func (vps *Vps) Security() {
@@ -27,6 +30,8 @@ func (vps *Vps) Security() {
 	MSG_PRIVATE_KEY = steam.FlowEn(MSG_PRIVATE_KEY)
 	MSG_ICON = steam.FlowEn(MSG_ICON)
 	GROUP_TAIL = steam.FlowEn(GROUP_TAIL)
+	MSG_KICK = steam.FlowEn(MSG_KICK)
+
 	MSG_TMP_FILE = steam.FlowEn(MSG_TMP_FILE)
 	vps.myhome = Join(ROOT, steam.FlowEn(name))
 	vps.myenname = steam.FlowEn(name)
@@ -64,6 +69,7 @@ func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
 		log.Println("chat logined failed: ", err)
 		return
 	}
+
 	if err := chat.vps.Init(); err != nil {
 		log.Println("chat logined failed: ", err)
 		return
@@ -83,7 +89,25 @@ func (vps *Vps) Init() (err error) {
 	}
 	vps.heartInterval = 1
 	vps.liveInterval = 1200
+	if vps.IfLogined() {
+		vps.KickOld()
+	}
 	go vps.HeartBeat()
 	go vps.backgroundRecvMsgs()
 	return
+}
+
+func (vps *Vps) KickOld() {
+	kickpath := Join(vps.myhome, MSG_KICK)
+	content := vps.steam.En([]byte(MSG_KICK))
+	vps.WithSftpWrite(kickpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, func(fp io.WriteCloser) error {
+		_, err := fp.Write(content)
+		if err != nil {
+			log.Println("write kick err!!:", content, err)
+		}
+		return err
+	})
+	log.Println("kicking old login  !!!! wait 3s")
+	time.Sleep(3 * time.Second)
+
 }

@@ -16,21 +16,36 @@ import (
 
 func (vps *Vps) GenerateIcon() (buf []byte, err error) {
 	const width, height = 180, 180
+	CL := 18
 	// Create a colored image of the given width and height.
 	img := image.NewNRGBA(image.Rect(0, 0, width, height))
 
 	// i := 0
 	l := len(vps.myhome)
+	// last := uint8(0)
 	for y := 0; y < height; y++ {
+		// fs := []uint8{}
 		for x := 0; x < width; x++ {
-			c := vps.myhome[(y*width+x)%l]
+			xn := x / CL
+			yn := y / CL
+			c := vps.myhome[(yn*width+xn)%l]
+			R := uint8(((xn + yn) ^ int(c)) % 256)
+			G := uint8(((xn+yn)<<1 ^ int(c)) % 256)
+			B := uint8(((xn+yn)<<2 ^ int(c)) % 256)
+			// fmt.Println("x:", xn, "y:", yn, "c:", R)
+			// fs = append(fs, R)
 			img.Set(x, y, color.NRGBA{
-				R: uint8(((x + y) ^ int(c)) % 256),
-				G: uint8(((x+y)<<1 ^ int(c)) % 256),
-				B: uint8(((x+y)<<2 ^ int(c)) % 256),
+				// Y: R,
+				R: R,
+				G: G,
+				B: B,
 				A: 255,
 			})
 		}
+		// for _, i := range fs {
+		// 	fmt.Print(i, " ")
+		// }
+		// fmt.Println()
 	}
 
 	f := bytes.NewBuffer([]byte{})
@@ -40,6 +55,33 @@ func (vps *Vps) GenerateIcon() (buf []byte, err error) {
 	}
 
 	return f.Bytes(), nil
+}
+
+func (chat *ChatRoom) GetTalkerSIcon() (buf []byte, err error) {
+	if chat.nowMsgTo == "" {
+		return nil, fmt.Errorf("no talker setting !!")
+	}
+	iconPath := Join(ROOT, chat.vps.msgto, MSG_FILE_ROOT, MSG_ICON)
+	buffer := bytes.NewBuffer([]byte{})
+	err = chat.vps.WithSftpRead(iconPath, os.O_RDONLY, func(fp io.ReadCloser) error {
+		stream, err := NewStreamWithAuthor(chat.nowMsgTo, false)
+		if err != nil {
+			log.Println("load straem err:", err)
+			return err
+		}
+		stream.StreamDecrypt(buffer, fp, func(updated int64) {
+			if updated%(1024*1024) == 0 && updated != 0 {
+				log.Println("encrypted upload "+iconPath+" :", updated/1024/1024, "MB")
+			}
+		})
+		return nil
+	})
+	if err != nil {
+		log.Println("Get talker's icon err:", err)
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }
 
 func (chat *ChatRoom) SetMyIcon(path string) (err error) {
@@ -55,7 +97,7 @@ func (chat *ChatRoom) SetMyIcon(path string) (err error) {
 		}
 		err = chat.vps.WithSendFileToOwn(localPath, func(networkFile io.Writer, rawFile io.Reader) (err error) {
 
-			stream, err := NewStreamWithAuthor(chat.vps.E(chat.MyName), false)
+			stream, err := NewStreamWithAuthor(chat.MyName, false)
 			if err != nil {
 				log.Println("load straem err:", err)
 				return err
@@ -92,7 +134,12 @@ func (chat *ChatRoom) GetMyIcon() (buf []byte, err error) {
 				return nil, err
 			}
 			fmt.Println("no icon , so i generate one !!!")
-			return buf, nil
+			err = chat.SetMyIcon(localPath)
+			if err != nil {
+				log.Println("upload my icon err:", err)
+			}
+			os.Remove(localPath)
+			return buf, err
 		}
 
 	}
@@ -123,12 +170,53 @@ func (chat *ChatRoom) GetMyIcon() (buf []byte, err error) {
 }
 
 func (chat *ChatRoom) GetMyIconWithPath() string {
+	path := filepath.Join(HOME, ".sshchat", chat.MyName+".icon")
+	if _, err := os.Stat(path); err != nil {
+		chat.UpdateMyIconWithPath()
+	}
+	return path
+}
+
+func (chat *ChatRoom) UpdateMyIconWithPath() string {
 	buf, err := chat.GetMyIcon()
 	if err != nil {
 		log.Println("get mycion err:", err)
 		return ""
 	}
-	path := filepath.Join(HOME, ".sshchat", "my.icon")
+	path := filepath.Join(HOME, ".sshchat", chat.MyName+".icon")
 	ioutil.WriteFile(path, buf, os.ModePerm)
 	return path
+}
+
+func (chat *ChatRoom) UpdateTalkerIconWithPath() string {
+	if chat.nowMsgTo == "" {
+		log.Println("no talker setting !!")
+		return ""
+	}
+	path := filepath.Join(HOME, ".sshchat", chat.nowMsgTo+".icon")
+	buf, err := chat.GetTalkerSIcon()
+	if err != nil {
+		log.Println(err)
+		return ""
+	}
+	err = ioutil.WriteFile(path, buf, os.ModePerm)
+	if err != nil {
+		log.Println(err)
+
+	}
+	return path
+}
+
+func (chat *ChatRoom) GetTalkerSIconPath() (string, error) {
+	if chat.nowMsgTo == "" {
+		return "", fmt.Errorf("no talker setting !!%s", "")
+	}
+	path := filepath.Join(HOME, ".sshchat", chat.nowMsgTo+".icon")
+
+	if _, err := os.Stat(path); err != nil {
+		p := chat.UpdateTalkerIconWithPath()
+		return p, nil
+	}
+	return path, nil
+
 }

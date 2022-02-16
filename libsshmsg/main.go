@@ -238,6 +238,20 @@ func ChatGetMyIconPath() *C.char {
 	return C.CString(GlobalChat.GetMyIconWithPath())
 }
 
+//export ChatGetTalkerIcon
+func ChatGetTalkerIcon() *C.char {
+	return C.CString(GlobalChat.GetTalkerSIconPath())
+}
+
+//export ChatSetMyIcon
+func ChatSetMyIcon(path *C.char) {
+	p := C.GoString(path)
+	err := GlobalChat.SetMyIcon(p)
+	if err != nil {
+		log.Println("set my icon err !", err)
+	}
+}
+
 //export ClearLocalCache
 func ClearLocalCache() {
 	GlobalChat.ClearLocalCache()

@@ -65,6 +65,8 @@ func (vps *Vps) TryRestoreKey(key string) bool {
 	}
 	remotekeyName := Join(TMP, stearm.FlowEn(vps.name))
 	// var plainkey []byte
+
+	vps.loginpwd = key
 	err = vps.WithSftpRead(remotekeyName, os.O_RDONLY, func(fp io.ReadCloser) error {
 		buf, err := ioutil.ReadAll(fp)
 		if err != nil {
@@ -84,7 +86,6 @@ func (vps *Vps) TryRestoreKey(key string) bool {
 		log.Println("restore failed !:", err)
 		return false
 	}
-	vps.loginpwd = key
 	return true
 }
 

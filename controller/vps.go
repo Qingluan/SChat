@@ -45,6 +45,7 @@ type Vps struct {
 	state         int
 	liveInterval  int
 	hearted       bool
+	logout        bool
 	heartInterval int
 	session       *ssh.Session
 	client        *ssh.Client
@@ -200,6 +201,7 @@ func (vps *Vps) WithSendFile(path string, dealStream func(networkFile io.Writer,
 	}
 	// err = vps.session.Run(fmt.Sprintf("mv %s %s", fpath, dpath))
 	err = vps.WithSftp(func(client *sftp.Client) error {
+		client.Remove(dpath)
 		return client.Rename(fpath, dpath)
 	})
 	return

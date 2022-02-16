@@ -27,7 +27,7 @@ var (
 	ROOT            = "/tmp/SecureRoom"
 	GROUP_TAIL      = "_GroUP"
 	TMP             = "/tmp"
-
+	MSG_KICK        = "kick"
 	MSG_CLIP_PREFIX = "[clipbroad]:"
 	MsgIsNULL       = fmt.Errorf("msg is null!!")
 )

@@ -10,13 +10,44 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/pkg/sftp"
 )
 
 func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 
 	msgpath := Join(vps.myhome, MSG_FILE)
-
+	kickpath := Join(vps.myhome, MSG_KICK)
 	dealSpecialMessage := false
+	needclear := false
+	vps.WithSftpRead(kickpath, os.O_RDONLY, func(fp io.ReadCloser) error {
+
+		needclear = true
+		buf, err := ioutil.ReadAll(fp)
+		if err != nil {
+			log.Println("read kick err:", err)
+			return nil
+		}
+		if len(buf) == 0 {
+			log.Println("no buf kick err:")
+			return nil
+		}
+		fmt.Println("kick buf:", buf)
+		de := vps.steam.De(buf)
+		if string(de) == MSG_KICK {
+			log.Println("died ")
+			vps.logout = true
+		}
+		return nil
+	})
+	if needclear {
+		vps.WithSftp(func(client *sftp.Client) error {
+			err := client.Remove(kickpath)
+			log.Println("clear kick file !,", err)
+			return nil
+		})
+	}
+
 	vps.WithSftpRead(msgpath, os.O_RDONLY|os.O_CREATE, func(fp io.ReadCloser) error {
 
 		buf, err := ioutil.ReadAll(fp)

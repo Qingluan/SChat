@@ -795,7 +795,8 @@ func SetHome(h string) {
 }
 
 func ClearLocalCache() {
-	os.RemoveAll(KeysHome)
-	os.RemoveAll(GroupKeysHome)
+	// os.RemoveAll(KeysHome)
+	// os.RemoveAll(GroupKeysHome)
+	os.RemoveAll(filepath.Join(HOME, ".sshchat"))
 	fmt.Println("remove keys home!!")
 }
