@@ -35,13 +35,16 @@ func (u *User) Acivte() string {
 			msg += fmt.Sprintf(" %d小时", int(raw.Hours()))
 
 		}
+		return msg
 	}
 	if raw.Minutes() > 1 {
 		msg += fmt.Sprintf(" %d分", int(raw.Minutes()))
+		return msg
 	}
 
 	if raw.Seconds() > 1 {
 		msg += fmt.Sprintf(" %d秒前", int(raw.Seconds()))
+		return msg
 	}
 	if msg == "" {
 		return "现在"

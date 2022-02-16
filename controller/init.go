@@ -77,6 +77,7 @@ func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
 		if restoresKey != nil && restoresKey[0] != "" {
 			fmt.Println("share key in remote:", chat.SaveKeyToServer(restoresKey[0]))
 		}
+		chat.GetMyIconWithPath()
 		return true
 	}
 
