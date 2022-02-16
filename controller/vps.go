@@ -38,8 +38,10 @@ type Vps struct {
 	Proxy         string
 	name          string
 	myhome        string
+	myenname      string
 	msgto         string
 	msgtoIP       string
+	loginpwd      string
 	state         int
 	liveInterval  int
 	hearted       bool
@@ -203,6 +205,36 @@ func (vps *Vps) WithSendFile(path string, dealStream func(networkFile io.Writer,
 	return
 }
 
+func (vps *Vps) WithSendFileToOwn(path string, dealStream func(networkFile io.Writer, rawFile io.Reader) (err error)) (err error) {
+	name := filepath.Base(path)
+	fpath := Join(ROOT, MSG_TMP_FILE, name)
+	if vps.msgto == "" {
+		return
+	}
+
+	dpath := Join(vps.myhome, MSG_FILE_ROOT, name)
+	err = vps.WithSftpWrite(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, func(fp io.WriteCloser) error {
+		readfp, err := os.OpenFile(path, os.O_RDONLY, os.ModePerm)
+		if err != nil {
+			return err
+		}
+		defer readfp.Close()
+		err = dealStream(fp, readfp)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		log.Println("send file to tmp err:", err)
+	}
+	// err = vps.session.Run(fmt.Sprintf("mv %s %s", fpath, dpath))
+	err = vps.WithSftp(func(client *sftp.Client) error {
+		return client.Rename(fpath, dpath)
+	})
+	return
+}
+
 func (vps *Vps) WithSftp(done func(client *sftp.Client) error) (err error) {
 	if vps.sftsess == nil {
 		if vps.client == nil {
@@ -252,6 +284,17 @@ func (vps *Vps) WithSftpReadAsLines(path string, flags ...int) (lines []string, 
 		}
 		for _, l := range strings.Split(string(buf), "\n") {
 			lines = append(lines, strings.TrimSpace(l))
+		}
+		return nil
+	})
+	return
+}
+
+func (vps *Vps) Exists(name string) (exists bool, dir bool) {
+	vps.WithSftpDir(Join(vps.myhome, MSG_FILE_ROOT), func(fs os.FileInfo) error {
+		if fs.Name() == name {
+			exists = true
+			dir = fs.IsDir()
 		}
 		return nil
 	})

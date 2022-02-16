@@ -228,6 +228,21 @@ func ChatCloudFiles() *C.TmpFiles {
 	return cfs
 }
 
+//export GetMyHome
+func GetMyLocalHome() *C.char {
+	return C.CString(GlobalChat.GetMyLocalHome())
+}
+
+//export ChatGetMyIcon
+func ChatGetMyIconPath() *C.char {
+	return C.CString(GlobalChat.GetMyIconWithPath())
+}
+
+//export ClearLocalCache
+func ClearLocalCache() {
+	GlobalChat.ClearLocalCache()
+}
+
 func main() {
 
 }

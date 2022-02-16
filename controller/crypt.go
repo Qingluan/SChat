@@ -793,3 +793,9 @@ func SetHome(h string) {
 	KeysHome = filepath.Join(HOME, ".sshchat", "keys")
 	GroupKeysHome = filepath.Join(HOME, ".sshchat", "gkeys")
 }
+
+func ClearLocalCache() {
+	os.RemoveAll(KeysHome)
+	os.RemoveAll(GroupKeysHome)
+	fmt.Println("remove keys home!!")
+}

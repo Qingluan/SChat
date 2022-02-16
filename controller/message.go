@@ -22,6 +22,7 @@ var (
 	MSG_PRIVATE_KEY = "keys"
 	MSG_FILE_ROOT   = "files"
 	MSG_HELLO       = "info"
+	MSG_ICON        = "icon.png"
 	MSG_TMP_FILE    = "tmp_file"
 	ROOT            = "/tmp/SecureRoom"
 	GROUP_TAIL      = "_GroUP"

@@ -111,6 +111,7 @@ MAINLOOP:
 			"/ls":        "show contact and groups",
 			"/del":       "remove group",
 			"/shareClip": "share clipbraod",
+			"/my-icon":   "get my icon path",
 		})
 		switch out {
 		case "/":
@@ -126,7 +127,12 @@ MAINLOOP:
 				}
 
 			}
-
+		case "/my-icon":
+			fmt.Println(chat.GetMyIconWithPath())
+		case "destroy":
+			chat.ClearLocalCache()
+			fmt.Println("destroy local keys ")
+			os.Exit(0)
 		case "/hist":
 			ShowHist(chat)
 		case "/file":

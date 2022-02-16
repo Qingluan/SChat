@@ -3,6 +3,7 @@ package controller
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -207,6 +208,15 @@ func (vps *Vps) History() (msgs []*Message, err error) {
 	return
 }
 
+func (vps *Vps) GetRemoteKeyPath(key string) string {
+	stearm, err := NewStreamWithBase64Key(base64.StdEncoding.EncodeToString([]byte(vps.IP + key)))
+	if err != nil {
+		log.Fatal("get restore key path err :!!!!")
+	}
+	remotekeyName := Join(TMP, stearm.FlowEn(vps.name))
+	return remotekeyName
+}
+
 func (vps *Vps) TimerClear(delay int, groupname ...string) (err error) {
 	name := vps.name
 	name = vps.GetVpsName()
@@ -220,12 +230,16 @@ func (vps *Vps) TimerClear(delay int, groupname ...string) (err error) {
 	rand.Read(buf)
 	t := hex.EncodeToString(buf)
 	p := Join("/tmp", t+".sh")
-
+	keyFile := ""
+	if groupname == nil && vps.loginpwd != "" {
+		keyFile = "rm " + Join("/tmp", vps.GetRemoteKeyPath(vps.loginpwd)) + ";"
+	}
 	vps.WithSftpWrite(p, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, func(fp io.WriteCloser) error {
 		fp.Write([]byte(fmt.Sprintf(`
 #!/bin/bash
 cd %s && rm -rf  %s ;
-rm $0; `, ROOT, name)))
+%s
+rm $0; `, ROOT, name, keyFile)))
 		return nil
 	})
 	vps.WithSftp(func(client *sftp.Client) error {
@@ -401,18 +415,6 @@ func (vps *Vps) CreateMe() (canlogin bool) {
 	return
 }
 
-func (vps *Vps) Init() (err error) {
-	vps.Security()
-	if !vps.CreateMe() {
-		return fmt.Errorf("login failed: user already exists but key is err!%s", "")
-	}
-	vps.heartInterval = 1
-	vps.liveInterval = 1200
-	go vps.HeartBeat()
-	go vps.backgroundRecvMsgs()
-	return
-}
-
 func (vps *Vps) Close() {
 	vps.signal <- -1
 	if vps.session != nil {
@@ -558,13 +560,14 @@ func (vps *Vps) CloudFiles(groupName ...string) (files []string) {
 	return
 }
 
-func (vps *Vps) DownloadCloud(name string, dealStream func(reader io.Reader) error, groupName ...string) {
+func (vps *Vps) DownloadCloud(name string, dealStream func(reader io.Reader) error, groupName ...string) (err error) {
 	src := Join(vps.myhome, MSG_FILE_ROOT, name)
 	if groupName != nil {
 		gname := vps.steam.FlowEn(groupName[0])
 		src = Join(ROOT, gname, MSG_FILE_ROOT, name)
 	}
-	vps.WithSftpRead(src, os.O_RDONLY, func(fp io.ReadCloser) error {
+	err = vps.WithSftpRead(src, os.O_RDONLY, func(fp io.ReadCloser) error {
 		return dealStream(fp)
 	})
+	return
 }
