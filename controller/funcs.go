@@ -599,3 +599,12 @@ func (vps *Vps) DownloadCloud(name string, dealStream func(reader io.Reader) err
 	})
 	return
 }
+
+func (chat *ChatRoom) ExistsUser(name string) bool {
+	for _, u := range chat.Contact() {
+		if u.Name == name {
+			return true
+		}
+	}
+	return false
+}

@@ -239,8 +239,9 @@ func ChatGetMyIconPath() *C.char {
 }
 
 //export ChatGetTalkerIcon
-func ChatGetTalkerIcon() *C.char {
-	p, err := GlobalChat.GetTalkerSIconPath()
+func ChatGetTalkerIcon(cname *C.char) *C.char {
+	name := C.GoString(cname)
+	p, err := GlobalChat.GetTalkerSIconPath(name)
 	if err != nil {
 		log.Println("get talker's icon err :", err)
 		return C.CString("")

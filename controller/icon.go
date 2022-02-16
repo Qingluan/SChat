@@ -57,14 +57,21 @@ func (vps *Vps) GenerateIcon() (buf []byte, err error) {
 	return f.Bytes(), nil
 }
 
-func (chat *ChatRoom) GetTalkerSIcon() (buf []byte, err error) {
-	if chat.nowMsgTo == "" {
+func (chat *ChatRoom) GetTalkerSIcon(name ...string) (buf []byte, err error) {
+	if chat.nowMsgTo == "" && name == nil {
 		return nil, fmt.Errorf("no talker setting !!")
 	}
+	author := chat.nowMsgTo
 	iconPath := Join(ROOT, chat.vps.msgto, MSG_FILE_ROOT, MSG_ICON)
+
+	if name != nil {
+		author = name[0]
+		iconPath = Join(ROOT, chat.vps.E(name[0]), MSG_FILE_ROOT, MSG_ICON)
+	}
+
 	buffer := bytes.NewBuffer([]byte{})
 	err = chat.vps.WithSftpRead(iconPath, os.O_RDONLY, func(fp io.ReadCloser) error {
-		stream, err := NewStreamWithAuthor(chat.nowMsgTo, false)
+		stream, err := NewStreamWithAuthor(author, false)
 		if err != nil {
 			log.Println("load straem err:", err)
 			return err
@@ -188,13 +195,17 @@ func (chat *ChatRoom) UpdateMyIconWithPath() string {
 	return path
 }
 
-func (chat *ChatRoom) UpdateTalkerIconWithPath() string {
-	if chat.nowMsgTo == "" {
+func (chat *ChatRoom) UpdateTalkerIconWithPath(name ...string) string {
+	if chat.nowMsgTo == "" && name == nil {
 		log.Println("no talker setting !!")
 		return ""
 	}
 	path := filepath.Join(HOME, ".sshchat", chat.nowMsgTo+".icon")
-	buf, err := chat.GetTalkerSIcon()
+	if name != nil {
+		path = filepath.Join(HOME, ".sshchat", name[0]+".icon")
+	}
+
+	buf, err := chat.GetTalkerSIcon(name...)
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -207,14 +218,19 @@ func (chat *ChatRoom) UpdateTalkerIconWithPath() string {
 	return path
 }
 
-func (chat *ChatRoom) GetTalkerSIconPath() (string, error) {
-	if chat.nowMsgTo == "" {
+func (chat *ChatRoom) GetTalkerSIconPath(name ...string) (string, error) {
+	if chat.nowMsgTo == "" && name == nil {
 		return "", fmt.Errorf("no talker setting !!%s", "")
 	}
 	path := filepath.Join(HOME, ".sshchat", chat.nowMsgTo+".icon")
-
+	if name != nil {
+		path = filepath.Join(HOME, ".sshchat", name[0]+".icon")
+		if !chat.ExistsUser(name[0]) {
+			return "", fmt.Errorf("no such user:%s", name)
+		}
+	}
 	if _, err := os.Stat(path); err != nil {
-		p := chat.UpdateTalkerIconWithPath()
+		p := chat.UpdateTalkerIconWithPath(name[0])
 		return p, nil
 	}
 	return path, nil
