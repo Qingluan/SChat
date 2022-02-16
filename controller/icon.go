@@ -102,6 +102,7 @@ func (chat *ChatRoom) SetMyIcon(path string) (err error) {
 		if err != nil {
 			return err
 		}
+		// log.Println("updalote end :", localPath)
 		err = chat.vps.WithSendFileToOwn(localPath, func(networkFile io.Writer, rawFile io.Reader) (err error) {
 
 			stream, err := NewStreamWithAuthor(chat.MyName, false)
@@ -109,18 +110,22 @@ func (chat *ChatRoom) SetMyIcon(path string) (err error) {
 				log.Println("load straem err:", err)
 				return err
 			}
-			stream.StreamEncrypt(networkFile, rawFile, func(updated int64) {
+			_, err = stream.StreamEncrypt(networkFile, rawFile, func(updated int64) {
 				if updated%(1024*1024) == 0 && updated != 0 {
 					log.Println("encrypted upload "+path+" :", updated/1024/1024, "MB")
 				}
 			})
-			return nil
+			// fmt.Println("upload :", n)
+			return err
 		})
 		if err != nil {
+			fmt.Println("upload png err:", err)
 			return err
 		}
 		log.Println("encrypted upload " + path + " ok")
 		return nil
+	} else {
+		log.Println("not png end :", path)
 	}
 	return
 }
@@ -140,12 +145,14 @@ func (chat *ChatRoom) GetMyIcon() (buf []byte, err error) {
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println("no icon , so i generate one !!!")
 			err = chat.SetMyIcon(localPath)
+
+			fmt.Println("no icon , so i generate one !!!", localPath)
 			if err != nil {
 				log.Println("upload my icon err:", err)
 			}
-			os.Remove(localPath)
+
+			// os.Remove(localPath)
 			return buf, err
 		}
 

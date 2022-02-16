@@ -582,6 +582,9 @@ func (vps *Vps) CloudFiles(groupName ...string) (files []string) {
 		if fs.Name() == "files" {
 			return nil
 		}
+		if fs.Name() == MSG_ICON {
+			return nil
+		}
 		files = append(files, fs.Name())
 		return nil
 	})

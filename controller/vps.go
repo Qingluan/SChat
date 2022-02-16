@@ -210,11 +210,14 @@ func (vps *Vps) WithSendFile(path string, dealStream func(networkFile io.Writer,
 func (vps *Vps) WithSendFileToOwn(path string, dealStream func(networkFile io.Writer, rawFile io.Reader) (err error)) (err error) {
 	name := filepath.Base(path)
 	fpath := Join(ROOT, MSG_TMP_FILE, name)
-	if vps.msgto == "" {
-		return
-	}
+	// if vps.msgto == "" {
+	// 	return
+	// }
 
 	dpath := Join(vps.myhome, MSG_FILE_ROOT, name)
+	// fmt.Println("fpath:", fpath)
+	// fmt.Println("dpath:", dpath)
+
 	err = vps.WithSftpWrite(fpath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, func(fp io.WriteCloser) error {
 		readfp, err := os.OpenFile(path, os.O_RDONLY, os.ModePerm)
 		if err != nil {
