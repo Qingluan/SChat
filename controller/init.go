@@ -62,11 +62,11 @@ func (vps *Vps) GetVpsName() string {
 }
 
 func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
-	logined := false
+	useremote := false
 	if restoresKey != nil && restoresKey[0] != "" {
 		if chat.RestoreKeyFromServer(restoresKey[0]) {
 			fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("login success"))
-			logined = true
+			useremote = true
 		}
 	}
 	var err error
@@ -81,7 +81,7 @@ func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
 		return
 	} else {
 		if restoresKey != nil && restoresKey[0] != "" {
-			if !logined {
+			if !useremote {
 				if chat.SaveKeyToServer(restoresKey[0]) {
 					fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("regist success"))
 				}
