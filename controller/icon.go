@@ -16,7 +16,7 @@ import (
 
 func (vps *Vps) GenerateIcon() (buf []byte, err error) {
 	const width, height = 180, 180
-	CL := 18
+	CL := 36
 	// Create a colored image of the given width and height.
 	img := image.NewNRGBA(image.Rect(0, 0, width, height))
 
@@ -71,7 +71,7 @@ func (chat *ChatRoom) GetTalkerSIcon(name ...string) (buf []byte, err error) {
 
 	buffer := bytes.NewBuffer([]byte{})
 	err = chat.vps.WithSftpRead(iconPath, os.O_RDONLY, func(fp io.ReadCloser) error {
-		stream, err := NewStreamWithAuthor(author, false)
+		stream, err := NewStreamWithAuthorNoSave(author, false)
 		if err != nil {
 			log.Println("load straem err:", err)
 			return err
@@ -237,7 +237,7 @@ func (chat *ChatRoom) GetTalkerSIconPath(name ...string) (string, error) {
 		}
 	}
 	if _, err := os.Stat(path); err != nil {
-		p := chat.UpdateTalkerIconWithPath(name[0])
+		p := chat.UpdateTalkerIconWithPath(name...)
 		return p, nil
 	}
 	return path, nil

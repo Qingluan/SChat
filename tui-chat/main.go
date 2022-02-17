@@ -113,6 +113,7 @@ MAINLOOP:
 			"/shareClip": "share clipbraod",
 			"/my-icon":   "get my icon path",
 			"/destroy":   "destroy local keys ",
+			"/his-icon":  "get his icon",
 		})
 		switch out {
 		case "/":
@@ -165,6 +166,13 @@ MAINLOOP:
 					controller.SecurityCheckName(gname)
 					chat.CreateGroup(gname)
 
+				}
+			} else if strings.HasPrefix(out, "/his-icon") {
+				gname := strings.TrimSpace(strings.SplitN(out, "/his-icon", 2)[1])
+				if gname != "" {
+					controller.SecurityCheckName(gname)
+					fmt.Println("get his 's icon", gname)
+					fmt.Println(chat.GetTalkerSIconPath(gname))
 				}
 			} else if strings.HasPrefix(out, "/join") {
 				gname := strings.TrimSpace(strings.SplitN(out, "/join", 2)[1])

@@ -62,6 +62,58 @@ func NewStreamWithRandomeKey() (stream *Stream, err error) {
 	return
 }
 
+func NewStreamWithAuthorNoSave(author string, loadGroupKey bool) (stream *Stream, err error) {
+	_, err = os.Stat(KeysHome)
+	if err != nil {
+		os.MkdirAll(KeysHome, os.ModePerm)
+		err = nil
+	}
+	// k := stream.Key
+	var key64 string
+	// tmpkey := make([]byte, 32)
+	// saved := true
+	// k, err := ioutil.ReadFile(filepath.Join(KeysHome, author+".key"))
+	k := ""
+	if loadGroupKey {
+		k = GetGroupKey(author)
+	} else {
+		k = GetKey(author)
+
+	}
+
+	if k == "" {
+		log.Println("no such author's key in local :", author)
+		return nil, fmt.Errorf("no such author's key in local :%s", author)
+	} else {
+		key64 = strings.TrimSpace(string(k))
+	}
+
+	key, err := base64.StdEncoding.DecodeString(key64)
+
+	if err != nil {
+		return
+	}
+	if len(key) < 32 {
+		key = append(key, []byte("asfasivbniasgfbiasgbiasghiashfiashf13412$RASFWEAT!%!@%TRASFSDAT@!#%$!@$")[:32-len(key)]...)
+	}
+	c, err := aes.NewCipher(key)
+	// if there are any errors, handle them
+	if err != nil {
+		fmt.Println(err)
+		panic(err)
+	}
+	stream = new(Stream)
+	// gcm or Galois/Counter Mode, is a mode of operation
+	// for symmetric key cryptographic block ciphers
+	// - https://en.wikipedia.org/wiki/Galois/Counter_Mode
+	gcm, err := cipher.NewGCM(c)
+	stream.cipher = &gcm
+	stream.Key = key64
+	stream.Author = author
+	stream.nonceSize = (*stream.cipher).NonceSize()
+	return
+}
+
 func NewStreamWithAuthor(author string, loadGroupKey bool) (stream *Stream, err error) {
 
 	_, err = os.Stat(KeysHome)
