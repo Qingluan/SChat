@@ -66,6 +66,7 @@ func (chat *ChatRoom) GetTalkerSIcon(name ...string) (buf []byte, err error) {
 
 	if name != nil {
 		author = name[0]
+		L("get %s's icon", author)
 		iconPath = Join(ROOT, chat.vps.E(name[0]), MSG_FILE_ROOT, MSG_ICON)
 	}
 
