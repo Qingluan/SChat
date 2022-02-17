@@ -86,6 +86,9 @@ func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
 			}
 		}
 		// fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("fetch my icon...."))
+		if ex, _ := chat.vps.Exists(MSG_ICON); !ex {
+			chat.UpdateMyIconWithPath()
+		}
 		chat.GetMyIconWithPath()
 		return true
 	}
