@@ -28,6 +28,7 @@ func (vps *Vps) SendKeyReq() (err error) {
 		_, e := fp.Write([]byte(string(data) + "\n\r"))
 		return e
 	})
+	L("pull %s(%s)'s key", vps.msgto, vps.D(vps.msgto))
 	return
 }
 
@@ -55,6 +56,7 @@ func (vps *Vps) SendKeyTo(target, key string, grouped ...string) (err error) {
 		_, e := fp.Write([]byte(string(data) + "\n\r"))
 		return e
 	})
+	L("i share my key to: %s(%s)", target, vps.D(target))
 	return
 }
 

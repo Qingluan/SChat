@@ -86,13 +86,14 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 					reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${key}:", 2)[1])
 					vps.state |= TALKER_I_HAVE
 					// fmt.Println("i got your key :", reqName, onemsg.Data)
+					Ok("- [x] exchange %s(%s)'s key successful!", onemsg.From, reqName)
 					go SetKey(reqName, onemsg.Data)
 					dealSpecialMessage = true
 				} else if strings.HasPrefix(onemsg.From, "${group-key}:") {
 					reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${group-key}:", 2)[1])
 					vps.state |= TALKER_I_HAVE
 					gname := vps.GetGroupName(onemsg.Group)
-					fmt.Println("i got group key :", onemsg.Data, "from", reqName, "in group:", gname)
+					Ok("i got group key :%s from %s in group %s", onemsg.Data, reqName, gname)
 
 					go SetGroupKey(gname, onemsg.Data)
 					dealSpecialMessage = true
