@@ -79,7 +79,8 @@ func (vps *Vps) RecvMsg() (msgs []*Message, err error) {
 					reqName := strings.TrimSpace(strings.SplitN(onemsg.From, "${no-key}:", 2)[1])
 					if key := GetKey(vps.name); key != "" {
 						// fmt.Println("kkk:", reqName)
-						go vps.SendKeyTo(reqName, key)
+						L("%s(%s) need my key.", vps.E(reqName), reqName)
+						go vps.SendKeyTo(vps.E(reqName), key)
 						dealSpecialMessage = true
 					}
 				} else if strings.HasPrefix(onemsg.From, "${key}:") {

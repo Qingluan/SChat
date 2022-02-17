@@ -44,7 +44,7 @@ func (vps *Vps) SendKeyTo(target, key string, grouped ...string) (err error) {
 		kk = "${group-key}:"
 		group = grouped[0]
 	}
-	msgpath := Join(ROOT, vps.E(target), MSG_FILE)
+	msgpath := Join(ROOT, target, MSG_FILE)
 	err = vps.WithSftpWrite(msgpath, os.O_RDWR|os.O_APPEND|os.O_CREATE, func(fp io.WriteCloser) error {
 		d := Message{
 			Date:  fmt.Sprint(date),
@@ -56,7 +56,7 @@ func (vps *Vps) SendKeyTo(target, key string, grouped ...string) (err error) {
 		_, e := fp.Write([]byte(string(data) + "\n\r"))
 		return e
 	})
-	L("i share my key to: %s(%s)", vps.E(target), target)
+	L("i share my key to: %s(%s)", target, vps.D(target))
 	return
 }
 
