@@ -157,6 +157,7 @@ func (chat *ChatRoom) GetMyIcon() (buf []byte, err error) {
 		}
 
 	}
+	L("icon found!:%s", MSG_ICON)
 
 	err = chat.vps.DownloadCloud(MSG_ICON, func(networkFile io.Reader) (err error) {
 		stream, err := NewStreamWithAuthor(author, grouped)
