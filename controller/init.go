@@ -7,8 +7,6 @@ import (
 	"log"
 	"os"
 	"time"
-
-	"github.com/fatih/color"
 )
 
 func (vps *Vps) Security() {
@@ -65,7 +63,7 @@ func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
 	useremote := false
 	if restoresKey != nil && restoresKey[0] != "" {
 		if chat.RestoreKeyFromServer(restoresKey[0]) {
-			fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("login success"))
+			Ok("login success:%s", chat.MyName)
 			useremote = true
 		}
 	}
@@ -83,11 +81,11 @@ func (chat *ChatRoom) Login(restoresKey ...string) (logined bool) {
 		if restoresKey != nil && restoresKey[0] != "" {
 			if !useremote {
 				if chat.SaveKeyToServer(restoresKey[0]) {
-					fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("regist success"))
+					Ok("regist success: %s", chat.MyName)
 				}
 			}
 		}
-		fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("fetch my icon...."))
+		// fmt.Println(color.New(color.FgCyan, color.Bold, color.Underline).Sprint("fetch my icon...."))
 		chat.GetMyIconWithPath()
 		return true
 	}
