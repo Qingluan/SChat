@@ -133,7 +133,7 @@ func (chat *ChatRoom) SetMyIcon(path string) (err error) {
 func (chat *ChatRoom) GetMyIcon() (buf []byte, err error) {
 
 	grouped := false
-	author := chat.nowMsgTo
+	author := chat.MyName
 	buffer := bytes.NewBuffer([]byte{})
 
 	if exists, _ := chat.vps.Exists(MSG_ICON); !exists {
